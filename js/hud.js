@@ -1,20 +1,26 @@
 'use strict';
 // ===== HUD & các màn hình UI =====
 const HUD = {
-  // vị trí nút skill (toạ độ logic 1280x720) — kiểu Liên Quân
-  skillBtns: [
-    { x: 1152, y: 588, r: 50 },
-    { x: 1052, y: 648, r: 44 },
-    { x: 1052, y: 522, r: 44 },
-    { x: 952, y: 590, r: 42 },
-    { x: 958, y: 478, r: 40 },
-  ],
-  lbBtn: { x: 852, y: 548, r: 38 },
-  potBtn: { x: 1206, y: 452, r: 30 },
-  pauseBtn: { x: 1244, y: 22, r: 20 },
-  helpBtn: { x: 1196, y: 22, r: 20 },
+  // vị trí nút skill (toạ độ logic) — kiểu Liên Quân; layout() tính lại theo màn hình
+  skillBtns: [],
+  lbBtn: { x: 0, y: 0, r: 38 },
+  potBtn: { x: 0, y: 0, r: 30 },
+  pauseBtn: { x: 0, y: 0, r: 20 },
+  helpBtn: { x: 0, y: 0, r: 20 },
   // nút UI các màn hình (đặt lại mỗi lần render để hit-test)
   zones: [],
+
+  // Tính lại vị trí nút: neo cụm skill vào góc dưới-phải, pause/help vào góc trên-phải.
+  // Máy nhỏ (điện thoại) phóng cụm nút thêm s lần cho dễ bấm; desktop giữ nguyên 1280x720.
+  layout() {
+    const s = G.smallUI ? 1.2 : 1;
+    const T = (x, y, r) => ({ x: G.VW + (x - 1280) * s, y: G.VH + (y - 720) * s, r: r * s });
+    this.skillBtns = [T(1152, 588, 50), T(1052, 648, 44), T(1052, 522, 44), T(952, 590, 42), T(958, 478, 40)];
+    this.lbBtn = T(852, 548, 38);
+    this.potBtn = T(1206, 452, 30);
+    this.pauseBtn = { x: G.VW - 36, y: 22, r: 20 };
+    this.helpBtn = { x: G.VW - 84, y: 22, r: 20 };
+  },
 
   zone(id, x, y, w, h) { this.zones.push({ id, x, y, w, h }); return { x, y, w, h }; },
   zoneAt(px, py) {
@@ -56,8 +62,9 @@ const HUD = {
   // ================= TITLE =================
   drawTitle(ctx) {
     this.zones = [];
+    const cx = G.VW / 2, yr = y => G.VH * y / 720;
     // nền
-    const g = ctx.createRadialGradient(640, 300, 60, 640, 400, 800);
+    const g = ctx.createRadialGradient(cx, yr(300), 60, cx, yr(400), 800);
     g.addColorStop(0, '#1c2440'); g.addColorStop(1, '#070a14');
     ctx.fillStyle = g; ctx.fillRect(0, 0, G.VW, G.VH);
     // tro bay
@@ -69,7 +76,7 @@ const HUD = {
     }
     // tinh thể
     ctx.save();
-    ctx.translate(640, 218);
+    ctx.translate(cx, yr(218));
     const sc = 1 + 0.04 * Math.sin(G.t * 1.8);
     ctx.scale(sc, sc);
     const cg = ctx.createLinearGradient(0, -90, 0, 90);
@@ -83,31 +90,35 @@ const HUD = {
     ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
     ctx.restore();
     // chữ
-    ttext(ctx, 'FINAL FANTASY', 640, 356, 40, '#e8ecf5', 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, 'X I V', 640, 410, 52, GOLD, 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, '—  MOBILE MOCK  —', 640, 452, 18, '#8b93a8', 'center', TITLE_FONT);
+    ttext(ctx, 'FINAL FANTASY', cx, yr(356), 40, '#e8ecf5', 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, 'X I V', cx, yr(410), 52, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, '—  MOBILE MOCK  —', cx, yr(452), 18, '#8b93a8', 'center', TITLE_FONT);
     // chocobo chạy ngang
-    const cx = ((G.t * 130) % (G.VW + 300)) - 150;
-    drawEmoji(ctx, '🐔', cx, 560, 44);
-    drawEmoji(ctx, '💨', cx - 40, 566, 20, 0.5);
+    const chx = ((G.t * 130) % (G.VW + 300)) - 150;
+    drawEmoji(ctx, '🐔', chx, yr(560), 44);
+    drawEmoji(ctx, '💨', chx - 40, yr(566), 20, 0.5);
     const a = 0.55 + 0.45 * Math.sin(G.t * 3);
-    ttext(ctx, '▾ CHẠM ĐỂ BẮT ĐẦU ▾', 640, 632, 24, `rgba(217,196,143,${a})`, 'center', UI_FONT, 1, 'bold');
-    ttext(ctx, 'Fan-made mock • không chính thức • chỉ dùng học tập', 640, 694, 13, 'rgba(139,147,168,0.7)');
+    ttext(ctx, '▾ CHẠM ĐỂ BẮT ĐẦU ▾', cx, yr(632), 24, `rgba(217,196,143,${a})`, 'center', UI_FONT, 1, 'bold');
+    ttext(ctx, 'Fan-made mock • không chính thức • chỉ dùng học tập', cx, yr(694), 13, 'rgba(139,147,168,0.7)');
     this.zone('title-tap', 0, 0, G.VW, G.VH);
   },
 
   // ================= CHỌN JOB =================
   drawSelect(ctx) {
     this.zones = [];
+    const cx = G.VW / 2;
+    // máy nhỏ: nén thẻ job lại (~k) cho vừa màn thấp
+    const k = G.smallUI ? 0.85 : 1;
+    const y0 = G.smallUI ? 118 : 132;
+    const cw = Math.round(268 * k), ch = Math.round(400 * k), gap = 30;
     const g = ctx.createLinearGradient(0, 0, 0, G.VH);
     g.addColorStop(0, '#141b36'); g.addColorStop(1, '#070a14');
     ctx.fillStyle = g; ctx.fillRect(0, 0, G.VW, G.VH);
-    ttext(ctx, '⚜ CHỌN JOB CỦA BẠN ⚜', 640, 58, 34, GOLD, 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, 'Duty: The Bowl of Embers — Ifrit', 640, 96, 17, '#8b93a8');
+    ttext(ctx, '⚜ CHỌN JOB CỦA BẠN ⚜', cx, 58, 34, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, 'Duty: The Bowl of Embers — Ifrit', cx, 96, 17, '#8b93a8');
 
-    const cw = 268, ch = 400, gap = 30;
     const total = JOB_ORDER.length * cw + (JOB_ORDER.length - 1) * gap;
-    const x0 = (G.VW - total) / 2, y0 = 132;
+    const x0 = (G.VW - total) / 2;
     JOB_ORDER.forEach((jid, i) => {
       const j = JOBS[jid];
       const x = x0 + i * (cw + gap);
@@ -131,39 +142,40 @@ const HUD = {
       // icon
       const rc = ROLE_COLORS[j.role];
       ctx.fillStyle = rc;
-      ctx.beginPath(); ctx.arc(x + cw / 2, y + 78, 50, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + cw / 2, y + 78 * k, 50 * k, 0, TAU); ctx.fill();
       ctx.strokeStyle = 'rgba(10,14,26,0.6)'; ctx.lineWidth = 3; ctx.stroke();
-      drawEmoji(ctx, j.icon, x + cw / 2, y + 78, 58);
-      ttext(ctx, j.name, x + cw / 2, y + 152, 27, '#e8ecf5', 'center', TITLE_FONT, 1, 'bold');
+      drawEmoji(ctx, j.icon, x + cw / 2, y + 78 * k, 58 * k, 1, j.id.toUpperCase());
+      ttext(ctx, j.name, x + cw / 2, y + 152 * k, 27, '#e8ecf5', 'center', TITLE_FONT, 1, 'bold');
       // role chip
       const chipW = 150;
-      roundRect(ctx, x + cw / 2 - chipW / 2, y + 172, chipW, 24, 12);
+      roundRect(ctx, x + cw / 2 - chipW / 2, y + 172 * k, chipW, 24, 12);
       ctx.fillStyle = rc; ctx.fill();
-      ttext(ctx, ROLE_VN[j.role], x + cw / 2, y + 184, 13, '#0a0e1a', 'center', UI_FONT, 1, 'bold');
-      ttext(ctx, j.vn, x + cw / 2, y + 214, 15, GOLD);
+      ttext(ctx, ROLE_VN[j.role], x + cw / 2, y + 184 * k, 13, '#0a0e1a', 'center', UI_FONT, 1, 'bold');
+      ttext(ctx, j.vn, x + cw / 2, y + 214 * k, 15, GOLD);
       // mô tả
-      wrapText(ctx, j.desc, x + cw / 2, y + 240, cw - 30, 17, '#c9d2e4');
+      wrapText(ctx, j.desc, x + cw / 2, y + 238 * k, cw - 30, 17, '#c9d2e4');
       // stat bars
       const stats = [['HP', j.hp / 900], ['ATK', j.atk / 38], ['DEF', j.def / 15]];
-      stats.forEach(([nm, k], si) => {
-        const sy = y + 300 + si * 26;
+      stats.forEach(([nm, kk], si) => {
+        const sy = y + 296 * k + si * 26 * k;
         ttext(ctx, nm, x + 30, sy + 7, 13, '#8b93a8', 'left');
-        this.bar(ctx, x + 68, sy, cw - 100, 13, k, nm === 'HP' ? '#5dd39e' : nm === 'ATK' ? '#e08b3f' : '#7cc7ff');
+        this.bar(ctx, x + 68, sy, cw - 100, 13, kk, nm === 'HP' ? '#5dd39e' : nm === 'ATK' ? '#e08b3f' : '#7cc7ff');
       });
       // best time
       const best = localStorage.getItem('ff14mock_best_' + jid);
       if (best) ttext(ctx, `🏅 Best: ${fmtTime(+best)}`, x + cw / 2, y + ch - 14, 13, GOLD);
     });
-    // nút xác nhận
-    const bw = 320, bx = (G.VW - bw) / 2, by = 568;
+    // nút xác nhận (neo cách thẻ 12px, desktop giữ nguyên vị trí cũ)
+    const bw = 320, bx = (G.VW - bw) / 2;
+    const by = G.smallUI ? y0 + ch + 12 : 568;
     const ok = G.selJob != null;
     roundRect(ctx, bx, by, bw, 58, 29);
     ctx.fillStyle = ok ? 'rgba(90,110,190,0.95)' : 'rgba(40,46,70,0.8)'; ctx.fill();
     ctx.strokeStyle = ok ? GOLD : 'rgba(120,130,160,0.4)'; ctx.lineWidth = 2; ctx.stroke();
-    ttext(ctx, ok ? `⚔ XUẤT CHINH — ${JOBS[G.selJob].name}` : 'Chọn một job bên trên', 640, by + 30, 22, ok ? '#fff' : '#8b93a8', 'center', UI_FONT, 1, 'bold');
+    ttext(ctx, ok ? `⚔ XUẤT CHINH — ${JOBS[G.selJob].name}` : 'Chọn một job bên trên', cx, by + 30, 22, ok ? '#fff' : '#8b93a8', 'center', UI_FONT, 1, 'bold');
     if (ok) this.zone('confirm', bx, by, bw, 58);
-    ttext(ctx, 'Điều khiển: joystick trái • nút skill phải • chạm quái để chọn mục tiêu', 640, 668, 15, 'rgba(139,147,168,0.85)');
-    ttext(ctx, 'Desktop: WASD di chuyển • chuột chọn mục tiêu • 1-5 skill • Q thuốc • R Limit Break', 640, 692, 14, 'rgba(139,147,168,0.6)');
+    ttext(ctx, 'Điều khiển: joystick trái • nút skill phải • chạm quái để chọn mục tiêu', cx, G.smallUI ? G.VH - 14 : 668, 15, 'rgba(139,147,168,0.85)');
+    if (!G.smallUI) ttext(ctx, 'Desktop: WASD di chuyển • chuột chọn mục tiêu • 1-5 skill • Q thuốc • R Limit Break', cx, 692, 14, 'rgba(139,147,168,0.6)');
   },
 
   // ================= HỘP THOẠI =================
@@ -177,7 +189,7 @@ const HUD = {
     roundRect(ctx, x + 22, y - 18, 200, 36, 18);
     ctx.fillStyle = '#1c2440'; ctx.fill();
     ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.stroke();
-    drawEmoji(ctx, d.icon, x + 44, y, 24);
+    drawEmoji(ctx, d.icon, x + 44, y, 24, 1, d.who);
     ttext(ctx, d.who, x + 118, y + 1, 19, GOLD, 'center', UI_FONT, 1, 'bold');
     // chữ xuất hiện dần
     const chars = Math.floor(G.t * 46);
@@ -194,13 +206,14 @@ const HUD = {
   drawDuty(ctx) {
     this.zones = [];
     const p = G.player;
+    const cx = G.VW / 2;
     // ----- khung người chơi -----
     const fx = 16, fy = 12, fw = 316, fh = 74;
     this.panel(ctx, fx, fy, fw, fh, 0.82);
     ctx.fillStyle = ROLE_COLORS[p.job.role];
     ctx.beginPath(); ctx.arc(fx + 34, fy + 32, 22, 0, TAU); ctx.fill();
     ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke();
-    drawEmoji(ctx, p.job.icon, fx + 34, fy + 32, 27);
+    drawEmoji(ctx, p.job.icon, fx + 34, fy + 32, 27, 1, p.job.id.toUpperCase());
     ttext(ctx, `Bạn  ·  Lv ${p.level}`, fx + 66, fy + 15, 14, '#e8ecf5', 'left', UI_FONT, 1, 'bold');
     ttext(ctx, p.job.name, fx + 66 + 118, fy + 15, 13, ROLE_COLORS[p.job.role], 'left');
     ttext(ctx, `i${p.gear.weaponIlvl}`, fx + fw - 10, fy + 15, 12, GOLD, 'right', UI_FONT, 1, 'bold');
@@ -233,7 +246,7 @@ const HUD = {
       ctx.fillStyle = a.alive ? 'rgba(10,15,30,0.75)' : 'rgba(30,12,16,0.75)';
       ctx.fill();
       ctx.strokeStyle = 'rgba(217,196,143,0.35)'; ctx.lineWidth = 1; ctx.stroke();
-      drawEmoji(ctx, a.def.icon, ax + 14, ay + 10, 15);
+      drawEmoji(ctx, a.def.icon, ax + 14, ay + 10, 15, 1, a.def.name);
       ttext(ctx, a.def.name, ax + 28, ay + 10, 11, a.alive ? '#c9d2e4' : '#8b6b6b', 'left');
       const k = a.alive ? clamp(a.hp / a.maxhp, 0, 1) : 0;
       this.bar(ctx, ax + 108, ay + 5, aw - 120, 10, k, k > 0.4 ? '#7de08a' : '#ff6b6b');
@@ -247,7 +260,7 @@ const HUD = {
     if (t) {
       ctx.fillStyle = t.def.color || '#888';
       ctx.beginPath(); ctx.arc(tfx + 26, tfy + 20, 15, 0, TAU); ctx.fill();
-      drawEmoji(ctx, t.def.icon || '🔥', tfx + 26, tfy + 20, 19);
+      drawEmoji(ctx, t.def.icon || '🔥', tfx + 26, tfy + 20, 19, 1, t.def.name);
       ttext(ctx, t.def.name, tfx + 48, tfy + 12, 13, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
       ttext(ctx, `Lv ${t.def.isBoss ? '??' : Math.max(1, Math.round(t.def.xp / 12))}`, tfx + tfw - 40, tfy + 12, 11, '#8b93a8', 'right');
       this.bar(ctx, tfx + 10, tfy + 26, tfw - 20, 12, t.hp / t.maxhp, '#ff6b6b');
@@ -269,8 +282,8 @@ const HUD = {
     });
 
     // ----- đồng hồ + gil -----
-    this.panel(ctx, 560, 10, 160, 30, 0.7);
-    ttext(ctx, `⏱ ${fmtTime(G.dutyTime)}`, 640, 25, 15, '#c9d2e4');
+    this.panel(ctx, cx - 80, 10, 160, 30, 0.7);
+    ttext(ctx, `⏱ ${fmtTime(G.dutyTime)}`, cx, 25, 15, '#c9d2e4');
     this.panel(ctx, 352, 74, 150, 26, 0.7);
     drawEmoji(ctx, '💰', 368, 87, 15);
     ttext(ctx, `${G.gil}`, 430, 87, 14, '#ffd75e', 'center', UI_FONT, 1, 'bold');
@@ -279,13 +292,13 @@ const HUD = {
     const b = G.boss;
     if (b && b.engaged && b.alive) {
       const bbw = 560, bbx = (G.VW - bbw) / 2, bby = 58;
-      ttext(ctx, 'IFRIT — PRIMAL CỦA LỬA', 640, bby - 6, 15, '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
+      ttext(ctx, 'IFRIT — PRIMAL CỦA LỬA', cx, bby - 6, 15, '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
       this.bar(ctx, bbx, bby, bbw, 20, b.hp / b.maxhp, '#c9402a');
-      ttext(ctx, `${Math.ceil(Math.max(0, b.hp))} / ${b.maxhp}`, 640, bby + 10, 12, '#fff', 'center', UI_FONT, 1, 'bold');
+      ttext(ctx, `${Math.ceil(Math.max(0, b.hp))} / ${b.maxhp}`, cx, bby + 10, 12, '#fff', 'center', UI_FONT, 1, 'bold');
       if (b.atkBuff > 1) ttext(ctx, `🔥 ENRAGE x${b.atkBuff.toFixed(2)}`, bbx + bbw - 4, bby - 6, 12, '#ff5b5b', 'right');
       if (b.cast) {
         this.bar(ctx, bbx, bby + 24, bbw, 14, b.cast.t / b.cast.tmax, '#ffd75e', 'rgba(20,16,8,0.9)');
-        ttext(ctx, `⚒ ${b.cast.name}`, 640, bby + 31, 11, '#1a1408', 'center', UI_FONT, 1, 'bold');
+        ttext(ctx, `⚒ ${b.cast.name}`, cx, bby + 31, 11, '#1a1408', 'center', UI_FONT, 1, 'bold');
       }
     }
 
@@ -316,8 +329,8 @@ const HUD = {
       const a = Math.min(1, G.hintT) * (0.35 + 0.15 * Math.sin(G.t * 3));
       ctx.strokeStyle = `rgba(217,196,143,${a * 0.5})`;
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(170, 560, 66, 0, TAU); ctx.stroke();
-      ttext(ctx, '👁 joystick di chuyển', 170, 660, 15, `rgba(232,236,245,${a})`);
+      ctx.beginPath(); ctx.arc(170, G.VH - 160, 66, 0, TAU); ctx.stroke();
+      ttext(ctx, '👁 joystick di chuyển', 170, G.VH - 60, 15, `rgba(232,236,245,${a})`);
     }
 
     // ----- nút skill -----
@@ -326,7 +339,7 @@ const HUD = {
     if (G.hintT > 0) {
       const a = Math.min(1, G.hintT / 1.5);
       const lines = ['👆 Chạm vào quái để chọn mục tiêu', '🟠 Vòng cam = AOE — NÉ NGAY!', 'Nút 💧 xanh: thuốc · nút LB: chiêu cuối'];
-      lines.forEach((l, i) => ttext(ctx, l, 640, 96 + i * 22, 15, `rgba(232,236,245,${a * 0.9})`));
+      lines.forEach((l, i) => ttext(ctx, l, cx, 96 + i * 22, 15, `rgba(232,236,245,${a * 0.9})`));
     }
 
     // ----- banner lớn -----
@@ -336,13 +349,13 @@ const HUD = {
       const a = k < 0.15 ? k / 0.15 : k > 0.8 ? (1 - k) / 0.2 : 1;
       ctx.save();
       ctx.globalAlpha = a;
-      const gr = ctx.createLinearGradient(340, 0, 940, 0);
+      const gr = ctx.createLinearGradient(cx - 300, 0, cx + 300, 0);
       gr.addColorStop(0, 'rgba(8,11,24,0)'); gr.addColorStop(0.5, 'rgba(8,11,24,0.75)'); gr.addColorStop(1, 'rgba(8,11,24,0)');
-      ctx.fillStyle = gr; ctx.fillRect(340, 210, 600, 110);
-      ttext(ctx, bn.txt, 640, 250, 40, GOLD, 'center', TITLE_FONT, 1, 'bold');
-      ttext(ctx, bn.sub || '', 640, 292, 17, '#c9d2e4');
+      ctx.fillStyle = gr; ctx.fillRect(cx - 300, 210, 600, 110);
+      ttext(ctx, bn.txt, cx, 250, 40, GOLD, 'center', TITLE_FONT, 1, 'bold');
+      ttext(ctx, bn.sub || '', cx, 292, 17, '#c9d2e4');
       ctx.strokeStyle = `rgba(217,196,143,${a * 0.8})`; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(400, 224); ctx.lineTo(560, 224); ctx.moveTo(720, 224); ctx.lineTo(880, 224); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - 240, 224); ctx.lineTo(cx - 80, 224); ctx.moveTo(cx + 80, 224); ctx.lineTo(cx + 240, 224); ctx.stroke();
       ctx.restore();
     }
     // ----- toasts -----
@@ -351,8 +364,8 @@ const HUD = {
       const a = k < 0.12 ? k / 0.12 : k > 0.75 ? (1 - k) / 0.25 : 1;
       ctx.globalAlpha = a;
       const w = ctx.measureText(t2.txt).width + 60;
-      this.panel(ctx, 640 - w / 2, 340 + i * 40, w, 32, 0.85);
-      ttext(ctx, t2.txt, 640, 356 + i * 40, 15, t2.color || '#c9d2e4', 'center', UI_FONT, 1, 'bold');
+      this.panel(ctx, cx - w / 2, 340 + i * 40, w, 32, 0.85);
+      ttext(ctx, t2.txt, cx, 356 + i * 40, 15, t2.color || '#c9d2e4', 'center', UI_FONT, 1, 'bold');
       ctx.globalAlpha = 1;
     });
 
@@ -365,7 +378,7 @@ const HUD = {
     const hpk = p.hp / p.maxhp;
     if (p.alive && hpk < 0.28) {
       const a = (0.28 - hpk) / 0.28 * (0.5 + 0.3 * Math.sin(G.t * 6));
-      const vg = ctx.createRadialGradient(640, 360, 300, 640, 360, 760);
+      const vg = ctx.createRadialGradient(cx, G.VH / 2, 300, cx, G.VH / 2, 760);
       vg.addColorStop(0, 'rgba(200,0,0,0)');
       vg.addColorStop(1, `rgba(200,0,0,${a * 0.8})`);
       ctx.fillStyle = vg; ctx.fillRect(0, 0, G.VW, G.VH);
@@ -396,7 +409,7 @@ const HUD = {
       ctx.lineWidth = 3;
       ctx.strokeStyle = canUse ? (def.gcd ? GOLD : '#b08fe0') : 'rgba(110,120,150,0.35)';
       ctx.stroke();
-      drawEmoji(ctx, def.icon, 0, -2, b.r * 0.92);
+      drawEmoji(ctx, def.icon, 0, -2, b.r * 0.92, 1, def.name);
       // GCD quét
       if (def.gcd && gcdFrac > 0) cdPie(ctx, 0, 0, b.r, gcdFrac * 0.55 + 0.0);
       // cooldown riêng
@@ -424,14 +437,14 @@ const HUD = {
     ctx.shadowBlur = 0;
     ctx.strokeStyle = full ? '#fff' : 'rgba(110,120,150,0.5)'; ctx.lineWidth = 3; ctx.stroke();
     ctx.restore();
-    drawEmoji(ctx, '🌈', lb.x, lb.y - 4, 34);
+    drawEmoji(ctx, '🌈', lb.x, lb.y - 4, 34, 1, 'LB');
     ttext(ctx, `${Math.floor(p.lb)}%`, lb.x, lb.y + 22, 12, full ? '#fff' : GOLD, 'center', UI_FONT, 1, 'bold');
     // Potion
     const pb = this.potBtn;
     ctx.beginPath(); ctx.arc(pb.x, pb.y, pb.r, 0, TAU);
     ctx.fillStyle = p.pot > 0 ? '#17301e' : '#14161f'; ctx.fill();
     ctx.strokeStyle = p.pot > 0 ? '#7de08a' : 'rgba(110,120,150,0.35)'; ctx.lineWidth = 2.5; ctx.stroke();
-    drawEmoji(ctx, '🧪', pb.x, pb.y, 26);
+    drawEmoji(ctx, '🧪', pb.x, pb.y, 26, 1, 'P');
     ttext(ctx, `x${p.pot}`, pb.x + 16, pb.y + 18, 13, '#7de08a', 'center', UI_FONT, 1, 'bold');
   },
 
@@ -465,7 +478,7 @@ const HUD = {
       ctx.beginPath(); ctx.arc(rx, ry, rr + 6 + 3 * Math.sin(G.t * 5), 0, TAU); ctx.stroke();
       ctx.restore();
     };
-    if (step.hint === 'joy') ring(170, 560, 66, 'rgba(159,208,255,0.9)');
+    if (step.hint === 'joy') ring(170, G.VH - 160, 66, 'rgba(159,208,255,0.9)');
     else if (step.hint === 'skill0') ring(this.skillBtns[0].x, this.skillBtns[0].y, this.skillBtns[0].r, 'rgba(255,215,94,0.95)');
     else if (step.hint === 'potion') ring(this.potBtn.x, this.potBtn.y, this.potBtn.r, 'rgba(125,224,138,0.95)');
 
@@ -539,12 +552,12 @@ const HUD = {
     this.zones = [];
     ctx.fillStyle = 'rgba(5,8,16,0.72)'; ctx.fillRect(0, 0, G.VW, G.VH);
     // pháo hoa
-    if (Math.random() < 0.12) addBurst(rand(200, 1080), rand(120, 380), choice(['#ffd75e', '#7de08a', '#7cc7ff', '#ff9c6b']), 18, 240);
+    if (Math.random() < 0.12) addBurst(rand(200, G.VW - 200), rand(120, 380), choice(['#ffd75e', '#7de08a', '#7cc7ff', '#ff9c6b']), 18, 240);
     drawPartsUI(ctx);
     const w = 700, h = 430, x = (G.VW - w) / 2, y = 90;
     this.panel(ctx, x, y, w, h, 0.95);
-    ttext(ctx, '⚜ DUTY COMPLETE ⚜', 640, y + 62, 42, GOLD, 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, 'Bạn đã hạ gục Ifrit, Primal của Lửa!', 640, y + 104, 18, '#c9d2e4');
+    ttext(ctx, '⚜ DUTY COMPLETE ⚜', G.VW / 2, y + 62, 42, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, 'Bạn đã hạ gục Ifrit, Primal của Lửa!', G.VW / 2, y + 104, 18, '#c9d2e4');
     const rows = [
       ['⏱ Thời gian', fmtTime(G.dutyTime)],
       ['💀 Quái vật đã diệt', `${G.kills + (G.fate ? G.fate.got : 0)}`],
@@ -563,7 +576,7 @@ const HUD = {
       ttext(ctx, a, x + 80, ry, 17, '#8b93a8', 'left');
       ttext(ctx, b2, x + w - 80, ry, 18, '#ffd75e', 'right', UI_FONT, 1, 'bold');
     });
-    drawEmoji(ctx, '🎉', 640, y + 348, 44);
+    drawEmoji(ctx, '🎉', G.VW / 2, y + 348, 44);
     // nút
     const bw = 250, bx = x + (w - bw * 2 - 30) / 2;
     this.btn(ctx, bx, y + h - 96, bw, 56, '🔁 Chơi lại', 'replay');
@@ -574,9 +587,9 @@ const HUD = {
     ctx.fillStyle = 'rgba(20,4,4,0.66)'; ctx.fillRect(0, 0, G.VW, G.VH);
     const w = 560, h = 300, x = (G.VW - w) / 2, y = 180;
     this.panel(ctx, x, y, w, h, 0.95);
-    drawEmoji(ctx, '💀', 640, y + 64, 56);
-    ttext(ctx, 'DUTY FAILED', 640, y + 130, 36, '#ff6b6b', 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, G.boss && G.boss.engaged ? 'Ifrit vẫn đang túc trực...' : 'Eorzea cần bạn thử lại!', 640, y + 168, 16, '#c9d2e4');
+    drawEmoji(ctx, '💀', G.VW / 2, y + 64, 56);
+    ttext(ctx, 'DUTY FAILED', G.VW / 2, y + 130, 36, '#ff6b6b', 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, G.boss && G.boss.engaged ? 'Ifrit vẫn đang túc trực...' : 'Eorzea cần bạn thử lại!', G.VW / 2, y + 168, 16, '#c9d2e4');
     const bw = 250, bx = x + (w - bw * 2 - 30) / 2;
     this.btn(ctx, bx, y + h - 96, bw, 56, '⚡ Hồi sinh', 'respawn');
     this.btn(ctx, bx + bw + 30, y + h - 96, bw, 56, '🧭 Đổi Job', 'select');
@@ -586,7 +599,7 @@ const HUD = {
     ctx.fillStyle = 'rgba(5,8,16,0.7)'; ctx.fillRect(0, 0, G.VW, G.VH);
     const w = 420, h = 330, x = (G.VW - w) / 2, y = 150;
     this.panel(ctx, x, y, w, h, 0.95);
-    ttext(ctx, '⏸ TẠM DỪNG', 640, y + 50, 30, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, '⏸ TẠM DỪNG', G.VW / 2, y + 50, 30, GOLD, 'center', TITLE_FONT, 1, 'bold');
     this.btn(ctx, x + 60, y + 90, w - 120, 52, '▶ Tiếp tục', 'resume');
     this.btn(ctx, x + 60, y + 152, w - 120, 52, '🔁 Chơi lại', 'replay');
     this.btn(ctx, x + 60, y + 214, w - 120, 52, `🔊 Âm thanh: ${Snd.muted ? 'TẮT' : 'BẬT'}`, 'mute');
@@ -606,7 +619,7 @@ function wrapText(ctx, txt, cx, y, maxW, lineH, color, align = 'center') {
   const words = txt.split(' ');
   const lines = [];
   let cur = '';
-  ctx.font = `17px ${UI_FONT}`;
+  ctx.font = `${17 * FS}px ${UI_FONT}`;
   for (const w2 of words) {
     const test = cur ? cur + ' ' + w2 : w2;
     if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w2; }

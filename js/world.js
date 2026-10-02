@@ -209,7 +209,7 @@ const World = {
   drawNPC(ctx) {
     const n = this.npc;
     this.drawShadow(ctx, n.x, n.y, 18);
-    drawEmoji(ctx, n.icon, n.x, n.y - 4, 40);
+    drawEmoji(ctx, n.icon, n.x, n.y - 4, 40, 1, n.name);
     ttext(ctx, n.name, n.x, n.y - 36, 13, GOLD, 'center', UI_FONT, 0.9);
     const b = 0.5 + 0.5 * Math.sin(G.t * 3);
     drawEmoji(ctx, '❗', n.x + 20, n.y - 26 + Math.sin(G.t * 2.5) * 3, 15, b);
@@ -233,7 +233,7 @@ const World = {
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(p.x, p.y - 4, p.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(20,25,40,0.65)'; ctx.lineWidth = 2; ctx.stroke();
-    drawEmoji(ctx, p.job.icon, p.x, p.y - 4, p.r * 1.35);
+    drawEmoji(ctx, p.job.icon, p.x, p.y - 4, p.r * 1.35, 1, p.job.id.toUpperCase());
     if (p.hitFxT > 0) {
       ctx.globalAlpha = p.hitFxT * 3;
       ctx.fillStyle = '#fff';
@@ -283,7 +283,7 @@ const World = {
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(e.x + lx, e.y + ly + bob - 3, e.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(15,10,10,0.6)'; ctx.lineWidth = 2; ctx.stroke();
-    drawEmoji(ctx, e.def.icon, e.x + lx, e.y + ly + bob - 3, e.r * 1.4);
+    drawEmoji(ctx, e.def.icon, e.x + lx, e.y + ly + bob - 3, e.r * 1.4, 1, e.def.name);
     if (e.flashT > 0) {
       ctx.globalAlpha = e.flashT * 6;
       ctx.fillStyle = '#fff';
@@ -320,7 +320,7 @@ const World = {
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(a.x + lx, a.y + ly - 3, a.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(15,10,10,0.55)'; ctx.lineWidth = 2; ctx.stroke();
-    drawEmoji(ctx, a.def.icon, a.x + lx, a.y + ly - 3, a.r * 1.35);
+    drawEmoji(ctx, a.def.icon, a.x + lx, a.y + ly - 3, a.r * 1.35, 1, a.def.name);
     if (a.hitFxT > 0) {
       ctx.globalAlpha = a.hitFxT * 3;
       ctx.fillStyle = '#fff';

@@ -27,7 +27,7 @@ const Input = {
       this.pointers.set(e.pointerId, p);
       this.taps.push({ x: p.x, y: p.y });
       // joystick: bắt đầu ở nửa trái màn hình logic
-      if (G.state === 'duty' && !this.joy.on && p.x < 620 && G.player && G.player.alive) {
+      if (G.state === 'duty' && !this.joy.on && p.x < G.VW * 0.485 && G.player && G.player.alive) {
         this.joy = { on: true, id: e.pointerId, bx: p.x, by: p.y, dx: 0, dy: 0, mag: 0 };
       }
     };

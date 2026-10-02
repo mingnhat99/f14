@@ -1055,12 +1055,11 @@ function updateTelegraphs(dt) {
           if (a.alive && telegraphHitTest(tg, a.x, a.y)) damageAlly(a, tg.dmg * 0.7, tg.label);
         }
       }
-      // Bomb tự nổ
+      // Bomb tự nổ — vẫn tính là kill (XP/gil/kills++) như dí nổ bằng damage
       if (tg.follow && tg.follow.def && tg.follow.def.selfDestruct && tg.follow.alive) {
-        tg.follow.alive = false;
         tg.follow.hp = 0;
         addText('💥 BOOM!', tg.follow.x, tg.follow.y - 30, '#ff7a3d', 18, true);
-        if (G.player.target === tg.follow) retarget(G.player);
+        killEnemy(tg.follow);
       }
       if (tg.onResolve) tg.onResolve();
     }
@@ -1256,6 +1255,6 @@ function drawPickups(ctx) {
     ctx.fillStyle = '#000';
     ctx.beginPath(); ctx.ellipse(it.x, it.y + 10, 10, 4, 0, 0, TAU); ctx.fill();
     ctx.globalAlpha = 1;
-    drawEmoji(ctx, it.type === 'gil' ? '💰' : '🧪', it.x, it.y - 6 + bob, 24);
+    drawEmoji(ctx, it.type === 'gil' ? '💰' : '🧪', it.x, it.y - 6 + bob, 24, 1, it.type === 'gil' ? 'G' : 'P');
   }
 }

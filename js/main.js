@@ -35,6 +35,16 @@ function init() {
 function resize() {
   const dpr = Math.min(2.5, window.devicePixelRatio || 1);
   const iw = window.innerWidth, ih = window.innerHeight;
+  // Màn nhỏ (điện thoại xoay ngang): hạ độ phân giải logic từ 1280x720 xuống 560px cao
+  // → mọi thứ (chữ, nút, item, quái) phóng to ~22-35% trên màn hình thật và hết letterbox 2 bên
+  G.smallUI = iw >= ih && ih <= 520;
+  FS = G.smallUI ? 1.12 : 1; // chữ UI to thêm một chút cho dễ đọc
+  if (G.smallUI) {
+    G.VH = 560;
+    G.VW = clamp(Math.round(G.VH * iw / ih), 1180, 1680);
+  } else {
+    G.VW = 1280; G.VH = 720;
+  }
   G.canvas.width = Math.round(iw * dpr);
   G.canvas.height = Math.round(ih * dpr);
   G.canvas.style.width = iw + 'px';
@@ -43,6 +53,7 @@ function resize() {
   G.offXCss = (iw - G.VW * G.scaleCss) / 2;
   G.offYCss = (ih - G.VH * G.scaleCss) / 2;
   G.dpr = dpr;
+  HUD.layout();
 }
 
 // ----- bắt đầu duty -----
