@@ -1,5 +1,7 @@
 # FFXIV Mobile Mock — The Bowl of Embers
 
+🎮 **Chơi ngay tại: https://mingnhat99.github.io/f14/** (tự động deploy qua GitHub Actions mỗi khi push)
+
 Bản mock mini lấy cảm hứng từ **Final Fantasy XIV**, chạy thẳng trên trình duyệt điện thoại (HTML5 Canvas, không cần cài gì). Góc nhìn top-down màn hình **ngang**, điều khiển kiểu MOBA (Liên Quân Mobile): joystick ảo bên trái, nút skill vòng cung bên phải.
 
 > ⚠️ Fan-made mock phi thương mại, chỉ dùng cho mục đích học tập / demo. Không liên quan đến Square Enix.
