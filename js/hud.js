@@ -1,0 +1,627 @@
+'use strict';
+// ===== HUD & các màn hình UI =====
+const HUD = {
+  // vị trí nút skill (toạ độ logic 1280x720) — kiểu Liên Quân
+  skillBtns: [
+    { x: 1152, y: 588, r: 50 },
+    { x: 1052, y: 648, r: 44 },
+    { x: 1052, y: 522, r: 44 },
+    { x: 952, y: 590, r: 42 },
+    { x: 958, y: 478, r: 40 },
+  ],
+  lbBtn: { x: 852, y: 548, r: 38 },
+  potBtn: { x: 1206, y: 452, r: 30 },
+  pauseBtn: { x: 1244, y: 22, r: 20 },
+  helpBtn: { x: 1196, y: 22, r: 20 },
+  // nút UI các màn hình (đặt lại mỗi lần render để hit-test)
+  zones: [],
+
+  zone(id, x, y, w, h) { this.zones.push({ id, x, y, w, h }); return { x, y, w, h }; },
+  zoneAt(px, py) {
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i];
+      if (px >= z.x && px <= z.x + z.w && py >= z.y && py <= z.y + z.h) return z;
+    }
+    return null;
+  },
+  btnAt(px, py) {
+    const circ = (b) => dist2(px, py, b.x, b.y) <= b.r * b.r;
+    if (circ(this.pauseBtn)) return { id: 'pause' };
+    if (circ(this.helpBtn)) return { id: 'help' };
+    if (circ(this.potBtn)) return { id: 'potion' };
+    if (circ(this.lbBtn)) return { id: 'lb' };
+    for (let i = 0; i < this.skillBtns.length; i++) if (circ(this.skillBtns[i])) return { id: 'skill', idx: i };
+    return null;
+  },
+
+  panel(ctx, x, y, w, h, alpha = 0.86) {
+    roundRect(ctx, x, y, w, h, 12);
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, `rgba(16,22,44,${alpha})`);
+    g.addColorStop(1, `rgba(8,11,24,${alpha})`);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.stroke();
+  },
+  bar(ctx, x, y, w, h, k, color, bg = 'rgba(8,12,22,0.85)') {
+    roundRect(ctx, x, y, w, h, h / 2);
+    ctx.fillStyle = bg; ctx.fill();
+    if (k > 0) {
+      roundRect(ctx, x + 1, y + 1, Math.max(h - 2, (w - 2) * clamp(k, 0, 1)), h - 2, (h - 2) / 2);
+      ctx.fillStyle = color; ctx.fill();
+    }
+    roundRect(ctx, x, y, w, h, h / 2);
+    ctx.strokeStyle = 'rgba(217,196,143,0.5)'; ctx.lineWidth = 1; ctx.stroke();
+  },
+
+  // ================= TITLE =================
+  drawTitle(ctx) {
+    this.zones = [];
+    // nền
+    const g = ctx.createRadialGradient(640, 300, 60, 640, 400, 800);
+    g.addColorStop(0, '#1c2440'); g.addColorStop(1, '#070a14');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, G.VW, G.VH);
+    // tro bay
+    for (let i = 0; i < 60; i++) {
+      const x = (i * 197 + G.t * (14 + (i % 7) * 5)) % G.VW;
+      const y = (G.VH - ((G.t * (10 + (i % 5) * 7) + i * 131) % G.VH));
+      ctx.fillStyle = `rgba(255,${140 + (i % 5) * 20},60,${0.14 + 0.1 * Math.sin(G.t * 2 + i)})`;
+      ctx.beginPath(); ctx.arc(x, y, 1.4 + (i % 3), 0, TAU); ctx.fill();
+    }
+    // tinh thể
+    ctx.save();
+    ctx.translate(640, 218);
+    const sc = 1 + 0.04 * Math.sin(G.t * 1.8);
+    ctx.scale(sc, sc);
+    const cg = ctx.createLinearGradient(0, -90, 0, 90);
+    cg.addColorStop(0, '#9fd0ff'); cg.addColorStop(0.5, '#4d7dd6'); cg.addColorStop(1, '#1c2440');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.moveTo(0, -95); ctx.lineTo(52, -20); ctx.lineTo(30, 88); ctx.lineTo(-30, 88); ctx.lineTo(-52, -20);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#d9e8ff'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-52, -20); ctx.lineTo(52, -20); ctx.moveTo(0, -95); ctx.lineTo(0, 88);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.restore();
+    // chữ
+    ttext(ctx, 'FINAL FANTASY', 640, 356, 40, '#e8ecf5', 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, 'X I V', 640, 410, 52, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, '—  MOBILE MOCK  —', 640, 452, 18, '#8b93a8', 'center', TITLE_FONT);
+    // chocobo chạy ngang
+    const cx = ((G.t * 130) % (G.VW + 300)) - 150;
+    drawEmoji(ctx, '🐔', cx, 560, 44);
+    drawEmoji(ctx, '💨', cx - 40, 566, 20, 0.5);
+    const a = 0.55 + 0.45 * Math.sin(G.t * 3);
+    ttext(ctx, '▾ CHẠM ĐỂ BẮT ĐẦU ▾', 640, 632, 24, `rgba(217,196,143,${a})`, 'center', UI_FONT, 1, 'bold');
+    ttext(ctx, 'Fan-made mock • không chính thức • chỉ dùng học tập', 640, 694, 13, 'rgba(139,147,168,0.7)');
+    this.zone('title-tap', 0, 0, G.VW, G.VH);
+  },
+
+  // ================= CHỌN JOB =================
+  drawSelect(ctx) {
+    this.zones = [];
+    const g = ctx.createLinearGradient(0, 0, 0, G.VH);
+    g.addColorStop(0, '#141b36'); g.addColorStop(1, '#070a14');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, G.VW, G.VH);
+    ttext(ctx, '⚜ CHỌN JOB CỦA BẠN ⚜', 640, 58, 34, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, 'Duty: The Bowl of Embers — Ifrit', 640, 96, 17, '#8b93a8');
+
+    const cw = 268, ch = 400, gap = 30;
+    const total = JOB_ORDER.length * cw + (JOB_ORDER.length - 1) * gap;
+    const x0 = (G.VW - total) / 2, y0 = 132;
+    JOB_ORDER.forEach((jid, i) => {
+      const j = JOBS[jid];
+      const x = x0 + i * (cw + gap);
+      const sel = G.selJob === jid;
+      const y = y0 + (sel ? -10 : 0);
+      const z = this.zone('job:' + jid, x, y, cw, ch);
+      // thẻ
+      roundRect(ctx, x, y, cw, ch, 16);
+      const cg = ctx.createLinearGradient(x, y, x, y + ch);
+      cg.addColorStop(0, sel ? 'rgba(40,52,96,0.96)' : 'rgba(18,24,46,0.92)');
+      cg.addColorStop(1, 'rgba(8,11,24,0.95)');
+      ctx.fillStyle = cg; ctx.fill();
+      ctx.strokeStyle = sel ? GOLD : 'rgba(120,130,160,0.4)';
+      ctx.lineWidth = sel ? 3.5 : 1.5; ctx.stroke();
+      if (sel) {
+        ctx.shadowColor = GOLD; ctx.shadowBlur = 22;
+        roundRect(ctx, x, y, cw, ch, 16);
+        ctx.strokeStyle = GOLD; ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+      // icon
+      const rc = ROLE_COLORS[j.role];
+      ctx.fillStyle = rc;
+      ctx.beginPath(); ctx.arc(x + cw / 2, y + 78, 50, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(10,14,26,0.6)'; ctx.lineWidth = 3; ctx.stroke();
+      drawEmoji(ctx, j.icon, x + cw / 2, y + 78, 58);
+      ttext(ctx, j.name, x + cw / 2, y + 152, 27, '#e8ecf5', 'center', TITLE_FONT, 1, 'bold');
+      // role chip
+      const chipW = 150;
+      roundRect(ctx, x + cw / 2 - chipW / 2, y + 172, chipW, 24, 12);
+      ctx.fillStyle = rc; ctx.fill();
+      ttext(ctx, ROLE_VN[j.role], x + cw / 2, y + 184, 13, '#0a0e1a', 'center', UI_FONT, 1, 'bold');
+      ttext(ctx, j.vn, x + cw / 2, y + 214, 15, GOLD);
+      // mô tả
+      wrapText(ctx, j.desc, x + cw / 2, y + 240, cw - 30, 17, '#c9d2e4');
+      // stat bars
+      const stats = [['HP', j.hp / 900], ['ATK', j.atk / 38], ['DEF', j.def / 15]];
+      stats.forEach(([nm, k], si) => {
+        const sy = y + 300 + si * 26;
+        ttext(ctx, nm, x + 30, sy + 7, 13, '#8b93a8', 'left');
+        this.bar(ctx, x + 68, sy, cw - 100, 13, k, nm === 'HP' ? '#5dd39e' : nm === 'ATK' ? '#e08b3f' : '#7cc7ff');
+      });
+      // best time
+      const best = localStorage.getItem('ff14mock_best_' + jid);
+      if (best) ttext(ctx, `🏅 Best: ${fmtTime(+best)}`, x + cw / 2, y + ch - 14, 13, GOLD);
+    });
+    // nút xác nhận
+    const bw = 320, bx = (G.VW - bw) / 2, by = 568;
+    const ok = G.selJob != null;
+    roundRect(ctx, bx, by, bw, 58, 29);
+    ctx.fillStyle = ok ? 'rgba(90,110,190,0.95)' : 'rgba(40,46,70,0.8)'; ctx.fill();
+    ctx.strokeStyle = ok ? GOLD : 'rgba(120,130,160,0.4)'; ctx.lineWidth = 2; ctx.stroke();
+    ttext(ctx, ok ? `⚔ XUẤT CHINH — ${JOBS[G.selJob].name}` : 'Chọn một job bên trên', 640, by + 30, 22, ok ? '#fff' : '#8b93a8', 'center', UI_FONT, 1, 'bold');
+    if (ok) this.zone('confirm', bx, by, bw, 58);
+    ttext(ctx, 'Điều khiển: joystick trái • nút skill phải • chạm quái để chọn mục tiêu', 640, 668, 15, 'rgba(139,147,168,0.85)');
+    ttext(ctx, 'Desktop: WASD di chuyển • chuột chọn mục tiêu • 1-5 skill • Q thuốc • R Limit Break', 640, 692, 14, 'rgba(139,147,168,0.6)');
+  },
+
+  // ================= HỘP THOẠI =================
+  drawDialogue(ctx) {
+    const d = G.dialogue;
+    if (!d) return;
+    this.zones = [];
+    const w = 920, h = 170, x = (G.VW - w) / 2, y = G.VH - h - 26;
+    this.panel(ctx, x, y, w, h, 0.94);
+    // tên
+    roundRect(ctx, x + 22, y - 18, 200, 36, 18);
+    ctx.fillStyle = '#1c2440'; ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.stroke();
+    drawEmoji(ctx, d.icon, x + 44, y, 24);
+    ttext(ctx, d.who, x + 118, y + 1, 19, GOLD, 'center', UI_FONT, 1, 'bold');
+    // chữ xuất hiện dần
+    const chars = Math.floor(G.t * 46);
+    const shown = d.text.slice(0, chars);
+    wrapText(ctx, shown, x + 36, y + 46, w - 72, 26, '#e8ecf5', 'left');
+    if (chars >= d.text.length) {
+      const a = 0.4 + 0.6 * Math.abs(Math.sin(G.t * 3.4));
+      ttext(ctx, '▶ Tap để tiếp tục', x + w - 110, y + h - 20, 15, `rgba(217,196,143,${a})`, 'right');
+    }
+    this.zone('dialogue-next', 0, 0, G.VW, G.VH);
+  },
+
+  // ================= HUD TRONG DUTY =================
+  drawDuty(ctx) {
+    this.zones = [];
+    const p = G.player;
+    // ----- khung người chơi -----
+    const fx = 16, fy = 12, fw = 316, fh = 74;
+    this.panel(ctx, fx, fy, fw, fh, 0.82);
+    ctx.fillStyle = ROLE_COLORS[p.job.role];
+    ctx.beginPath(); ctx.arc(fx + 34, fy + 32, 22, 0, TAU); ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke();
+    drawEmoji(ctx, p.job.icon, fx + 34, fy + 32, 27);
+    ttext(ctx, `Bạn  ·  Lv ${p.level}`, fx + 66, fy + 15, 14, '#e8ecf5', 'left', UI_FONT, 1, 'bold');
+    ttext(ctx, p.job.name, fx + 66 + 118, fy + 15, 13, ROLE_COLORS[p.job.role], 'left');
+    ttext(ctx, `i${p.gear.weaponIlvl}`, fx + fw - 10, fy + 15, 12, GOLD, 'right', UI_FONT, 1, 'bold');
+    this.bar(ctx, fx + 66, fy + 25, 236, 15, p.hp / p.maxhp, '#5dd39e');
+    ttext(ctx, `${Math.ceil(p.hp)} / ${p.maxhp}`, fx + 66 + 118, fy + 33, 11, '#0a0e1a', 'center', UI_FONT, 1, 'bold');
+    this.bar(ctx, fx + 66, fy + 43, 236, 10, p.mp / p.maxmp, '#58a6ff');
+    ttext(ctx, `${Math.floor(p.mp)} MP`, fx + 66 + 50, fy + 48, 10, '#e8ecf5', 'left');
+    // LB gauge
+    this.bar(ctx, fx + 66, fy + 56, 236, 9, p.lb / 100, p.lb >= 100 ? `hsl(${(G.t * 200) % 360},85%,60%)` : '#d9c48f');
+    ttext(ctx, 'LB', fx + 50, fy + 61, 10, GOLD, 'right');
+    // buff icons (kèm stance AF/UI của BLM)
+    const buffIcons = [];
+    if (p.stance) buffIcons.push({ icon: p.stance.name === 'AF' ? '🔥' : '❄️', t: p.stance.t, label: String(p.stance.stacks) });
+    for (const b of p.buffs) buffIcons.push({ icon: b.icon, t: b.t });
+    buffIcons.forEach((b, i) => {
+      const bx = fx + 66 + i * 32, by = fy + 70;
+      drawEmoji(ctx, b.icon, bx, by, 18);
+      ttext(ctx, b.label || (Math.ceil(b.t) + 's'), bx, by + 13, 10, '#c9d2e4');
+    });
+    // weakness
+    if (p.weaknessT > 0) {
+      drawEmoji(ctx, '💧', fx + 300, fy + 70, 16);
+      ttext(ctx, 'Yếu', fx + 300, fy + 84, 10, '#7cc7ff');
+    }
+
+    // ----- khung đồng đội (Duty Support) -----
+    (G.allies || []).forEach((a, i) => {
+      const ax = 16, ay = 92 + i * 24, aw = 316, ah = 20;
+      roundRect(ctx, ax, ay, aw, ah, 6);
+      ctx.fillStyle = a.alive ? 'rgba(10,15,30,0.75)' : 'rgba(30,12,16,0.75)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(217,196,143,0.35)'; ctx.lineWidth = 1; ctx.stroke();
+      drawEmoji(ctx, a.def.icon, ax + 14, ay + 10, 15);
+      ttext(ctx, a.def.name, ax + 28, ay + 10, 11, a.alive ? '#c9d2e4' : '#8b6b6b', 'left');
+      const k = a.alive ? clamp(a.hp / a.maxhp, 0, 1) : 0;
+      this.bar(ctx, ax + 108, ay + 5, aw - 120, 10, k, k > 0.4 ? '#7de08a' : '#ff6b6b');
+      if (!a.alive) ttext(ctx, `💀 hồi sinh ${Math.ceil(a.deadT)}s`, ax + 108 + (aw - 120) / 2, ay + 10, 10, '#ff9c9c');
+    });
+
+    // ----- khung mục tiêu -----
+    const t = (p.target && p.target.alive) ? p.target : null;
+    const tfx = 348, tfy = 12, tfw = 252, tfh = 54;
+    this.panel(ctx, tfx, tfy, tfw, tfh, 0.8);
+    if (t) {
+      ctx.fillStyle = t.def.color || '#888';
+      ctx.beginPath(); ctx.arc(tfx + 26, tfy + 20, 15, 0, TAU); ctx.fill();
+      drawEmoji(ctx, t.def.icon || '🔥', tfx + 26, tfy + 20, 19);
+      ttext(ctx, t.def.name, tfx + 48, tfy + 12, 13, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
+      ttext(ctx, `Lv ${t.def.isBoss ? '??' : Math.max(1, Math.round(t.def.xp / 12))}`, tfx + tfw - 40, tfy + 12, 11, '#8b93a8', 'right');
+      this.bar(ctx, tfx + 10, tfy + 26, tfw - 20, 12, t.hp / t.maxhp, '#ff6b6b');
+      ttext(ctx, `${Math.ceil(Math.max(0, t.hp))}`, tfx + tfw / 2, tfy + 32, 10, '#fff', 'center', UI_FONT, 1, 'bold');
+      if (t.cast) {
+        this.bar(ctx, tfx + 10, tfy + 41, tfw - 20, 9, t.cast.t / t.cast.tmax, '#ffd75e');
+        ttext(ctx, t.cast.name, tfx + tfw / 2, tfy + 45, 9, '#1a1408', 'center', UI_FONT, 1, 'bold');
+      }
+    } else {
+      ttext(ctx, 'Không có mục tiêu', tfx + tfw / 2, tfy + 28, 14, 'rgba(139,147,168,0.7)');
+    }
+
+    // ----- nhiệm vụ & FATE -----
+    const obj = this.objectiveText();
+    const objY = 92 + (G.allies || []).length * 24 + 8;
+    this.panel(ctx, 16, objY, 300, obj.length * 18 + 16, 0.72);
+    obj.forEach((line, i) => {
+      ttext(ctx, line.txt, 28, objY + 14 + i * 18, 13, line.color || '#c9d2e4', 'left');
+    });
+
+    // ----- đồng hồ + gil -----
+    this.panel(ctx, 560, 10, 160, 30, 0.7);
+    ttext(ctx, `⏱ ${fmtTime(G.dutyTime)}`, 640, 25, 15, '#c9d2e4');
+    this.panel(ctx, 352, 74, 150, 26, 0.7);
+    drawEmoji(ctx, '💰', 368, 87, 15);
+    ttext(ctx, `${G.gil}`, 430, 87, 14, '#ffd75e', 'center', UI_FONT, 1, 'bold');
+
+    // ----- boss bar -----
+    const b = G.boss;
+    if (b && b.engaged && b.alive) {
+      const bbw = 560, bbx = (G.VW - bbw) / 2, bby = 58;
+      ttext(ctx, 'IFRIT — PRIMAL CỦA LỬA', 640, bby - 6, 15, '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
+      this.bar(ctx, bbx, bby, bbw, 20, b.hp / b.maxhp, '#c9402a');
+      ttext(ctx, `${Math.ceil(Math.max(0, b.hp))} / ${b.maxhp}`, 640, bby + 10, 12, '#fff', 'center', UI_FONT, 1, 'bold');
+      if (b.atkBuff > 1) ttext(ctx, `🔥 ENRAGE x${b.atkBuff.toFixed(2)}`, bbx + bbw - 4, bby - 6, 12, '#ff5b5b', 'right');
+      if (b.cast) {
+        this.bar(ctx, bbx, bby + 24, bbw, 14, b.cast.t / b.cast.tmax, '#ffd75e', 'rgba(20,16,8,0.9)');
+        ttext(ctx, `⚒ ${b.cast.name}`, 640, bby + 31, 11, '#1a1408', 'center', UI_FONT, 1, 'bold');
+      }
+    }
+
+    World.drawMinimap(ctx);
+
+    // ----- nút pause & trợ giúp -----
+    ctx.fillStyle = 'rgba(8,12,24,0.8)';
+    ctx.beginPath(); ctx.arc(this.pauseBtn.x, this.pauseBtn.y, this.pauseBtn.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.stroke();
+    ttext(ctx, '⏸', this.pauseBtn.x, this.pauseBtn.y + 1, 17, '#c9d2e4');
+    ctx.fillStyle = 'rgba(8,12,24,0.8)';
+    ctx.beginPath(); ctx.arc(this.helpBtn.x, this.helpBtn.y, this.helpBtn.r, 0, TAU); ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 1.5; ctx.stroke();
+    ttext(ctx, '❓', this.helpBtn.x, this.helpBtn.y + 1, 13, '#c9d2e4');
+
+    // ----- joystick -----
+    if (Input.joy.on) {
+      const j = Input.joy;
+      ctx.strokeStyle = 'rgba(217,196,143,0.5)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(j.bx, j.by, this.joyR_vis || 66, 0, TAU); ctx.stroke();
+      ctx.fillStyle = 'rgba(217,196,143,0.18)';
+      ctx.beginPath(); ctx.arc(j.bx, j.by, 66, 0, TAU); ctx.fill();
+      const kx = j.bx + j.dx * j.mag * 60, ky = j.by + j.dy * j.mag * 60;
+      ctx.fillStyle = 'rgba(232,236,245,0.75)';
+      ctx.beginPath(); ctx.arc(kx, ky, 26, 0, TAU); ctx.fill();
+      ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke();
+    } else if (G.hintT > 0 && p.alive) {
+      const a = Math.min(1, G.hintT) * (0.35 + 0.15 * Math.sin(G.t * 3));
+      ctx.strokeStyle = `rgba(217,196,143,${a * 0.5})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(170, 560, 66, 0, TAU); ctx.stroke();
+      ttext(ctx, '👁 joystick di chuyển', 170, 660, 15, `rgba(232,236,245,${a})`);
+    }
+
+    // ----- nút skill -----
+    this.drawSkillButtons(ctx, p);
+    // ----- gợi ý điều khiển đầu game -----
+    if (G.hintT > 0) {
+      const a = Math.min(1, G.hintT / 1.5);
+      const lines = ['👆 Chạm vào quái để chọn mục tiêu', '🟠 Vòng cam = AOE — NÉ NGAY!', 'Nút 💧 xanh: thuốc · nút LB: chiêu cuối'];
+      lines.forEach((l, i) => ttext(ctx, l, 640, 96 + i * 22, 15, `rgba(232,236,245,${a * 0.9})`));
+    }
+
+    // ----- banner lớn -----
+    if (G.banner) {
+      const bn = G.banner;
+      const k = bn.t / bn.tmax;
+      const a = k < 0.15 ? k / 0.15 : k > 0.8 ? (1 - k) / 0.2 : 1;
+      ctx.save();
+      ctx.globalAlpha = a;
+      const gr = ctx.createLinearGradient(340, 0, 940, 0);
+      gr.addColorStop(0, 'rgba(8,11,24,0)'); gr.addColorStop(0.5, 'rgba(8,11,24,0.75)'); gr.addColorStop(1, 'rgba(8,11,24,0)');
+      ctx.fillStyle = gr; ctx.fillRect(340, 210, 600, 110);
+      ttext(ctx, bn.txt, 640, 250, 40, GOLD, 'center', TITLE_FONT, 1, 'bold');
+      ttext(ctx, bn.sub || '', 640, 292, 17, '#c9d2e4');
+      ctx.strokeStyle = `rgba(217,196,143,${a * 0.8})`; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(400, 224); ctx.lineTo(560, 224); ctx.moveTo(720, 224); ctx.lineTo(880, 224); ctx.stroke();
+      ctx.restore();
+    }
+    // ----- toasts -----
+    G.toasts.forEach((t2, i) => {
+      const k = t2.t / t2.tmax;
+      const a = k < 0.12 ? k / 0.12 : k > 0.75 ? (1 - k) / 0.25 : 1;
+      ctx.globalAlpha = a;
+      const w = ctx.measureText(t2.txt).width + 60;
+      this.panel(ctx, 640 - w / 2, 340 + i * 40, w, 32, 0.85);
+      ttext(ctx, t2.txt, 640, 356 + i * 40, 15, t2.color || '#c9d2e4', 'center', UI_FONT, 1, 'bold');
+      ctx.globalAlpha = 1;
+    });
+
+    // ----- thẻ hướng dẫn người mới -----
+    this.drawTutorial(ctx);
+    // ----- bảng trợ giúp -----
+    if (G.helpOpen) this.drawHelp(ctx);
+
+    // vignette máu thấp
+    const hpk = p.hp / p.maxhp;
+    if (p.alive && hpk < 0.28) {
+      const a = (0.28 - hpk) / 0.28 * (0.5 + 0.3 * Math.sin(G.t * 6));
+      const vg = ctx.createRadialGradient(640, 360, 300, 640, 360, 760);
+      vg.addColorStop(0, 'rgba(200,0,0,0)');
+      vg.addColorStop(1, `rgba(200,0,0,${a * 0.8})`);
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, G.VW, G.VH);
+    }
+  },
+
+  drawSkillButtons(ctx, p) {
+    const gcdFrac = p.gcd / p.job.gcd;
+    p.skills.forEach((s, i) => {
+      const b = this.skillBtns[i];
+      const def = s.def;
+      const isNextCombo = def.combo && p.combo && p.combo.id === def.combo && p.combo.t > 0;
+      const cdFrac = s.cd > 0 && def.cd ? s.cd / def.cd : 0;
+      const canUse = (def.gcd ? p.gcd <= 0.05 : true) && s.cd <= 0 && p.mp >= def.mp;
+      ctx.save();
+      ctx.translate(b.x, b.y);
+      // glow combo
+      if (isNextCombo) {
+        ctx.shadowColor = '#ffd75e'; ctx.shadowBlur = 22 + 8 * Math.sin(G.t * 7);
+      }
+      // nền
+      ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU);
+      const g = ctx.createRadialGradient(0, -b.r * 0.4, 4, 0, 0, b.r);
+      g.addColorStop(0, canUse ? '#2c3a66' : '#1c2238');
+      g.addColorStop(1, '#0c1122');
+      ctx.fillStyle = g; ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = canUse ? (def.gcd ? GOLD : '#b08fe0') : 'rgba(110,120,150,0.35)';
+      ctx.stroke();
+      drawEmoji(ctx, def.icon, 0, -2, b.r * 0.92);
+      // GCD quét
+      if (def.gcd && gcdFrac > 0) cdPie(ctx, 0, 0, b.r, gcdFrac * 0.55 + 0.0);
+      // cooldown riêng
+      if (cdFrac > 0) {
+        cdPie(ctx, 0, 0, b.r, cdFrac);
+        ttext(ctx, s.cd > 1 ? Math.ceil(s.cd) : s.cd.toFixed(1), 0, 0, 17, '#fff', 'center', UI_FONT, 1, 'bold');
+      }
+      // số phím tắt
+      ttext(ctx, `${i + 1}`, -b.r + 13, -b.r + 13, 12, 'rgba(232,236,245,0.65)', 'center');
+      ctx.restore();
+      // nhãn tên nhỏ
+      if (i === 0 && G.hintT > 0) ttext(ctx, def.name, b.x, b.y + b.r + 14, 12, `rgba(232,236,245,${Math.min(1, G.hintT)})`);
+    });
+    // LB
+    const lb = this.lbBtn, full = p.lb >= 100;
+    ctx.save();
+    ctx.translate(lb.x, lb.y);
+    ctx.rotate(Math.PI / 4);
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-lb.r, -lb.r, lb.r * 2, lb.r * 2, 10) : ctx.rect(-lb.r, -lb.r, lb.r * 2, lb.r * 2);
+    if (full) { ctx.shadowColor = `hsl(${(G.t * 200) % 360},85%,60%)`; ctx.shadowBlur = 24; }
+    const lg = ctx.createLinearGradient(-lb.r, -lb.r, lb.r, lb.r);
+    lg.addColorStop(0, full ? '#ffdf80' : '#20284a');
+    lg.addColorStop(1, full ? '#e07040' : '#0c1122');
+    ctx.fillStyle = lg; ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = full ? '#fff' : 'rgba(110,120,150,0.5)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+    drawEmoji(ctx, '🌈', lb.x, lb.y - 4, 34);
+    ttext(ctx, `${Math.floor(p.lb)}%`, lb.x, lb.y + 22, 12, full ? '#fff' : GOLD, 'center', UI_FONT, 1, 'bold');
+    // Potion
+    const pb = this.potBtn;
+    ctx.beginPath(); ctx.arc(pb.x, pb.y, pb.r, 0, TAU);
+    ctx.fillStyle = p.pot > 0 ? '#17301e' : '#14161f'; ctx.fill();
+    ctx.strokeStyle = p.pot > 0 ? '#7de08a' : 'rgba(110,120,150,0.35)'; ctx.lineWidth = 2.5; ctx.stroke();
+    drawEmoji(ctx, '🧪', pb.x, pb.y, 26);
+    ttext(ctx, `x${p.pot}`, pb.x + 16, pb.y + 18, 13, '#7de08a', 'center', UI_FONT, 1, 'bold');
+  },
+
+  // ================= HƯỚNG DẪN NGƯỜI MỚI =================
+  drawTutorial(ctx) {
+    if (G.tut.skip || !G.tut) return;
+    const step = TUT_STEPS[G.tut.idx];
+    if (!step) return;
+    const w = 560, x = (G.VW - w) / 2, y = G.VH - 132, h = 74;
+    const pulse = 0.6 + 0.4 * Math.sin(G.t * 4);
+    ctx.save();
+    ctx.shadowColor = `rgba(159,208,255,${0.35 * pulse})`;
+    ctx.shadowBlur = 16;
+    this.panel(ctx, x, y, w, h, 0.92);
+    ctx.restore();
+    drawEmoji(ctx, '📖', x + 30, y + h / 2, 30);
+    ttext(ctx, `HƯỚNG DẪN  ${G.tut.idx + 1}/${TUT_STEPS.length}`, x + 56, y + 18, 13, GOLD, 'left', UI_FONT, 1, 'bold');
+    wrapText(ctx, step.txt, x + 56, y + 42, w - 120, 20, '#eef2fa', 'left');
+    // tiến độ bước
+    const prog = clamp((G.tut.progress || 0) / step.need, 0, 1);
+    this.bar(ctx, x + 56, y + h - 16, w - 190, 8, prog, '#9fd0ff');
+    ttext(ctx, `${Math.min(G.tut.progress || 0, step.need)}/${step.need}`, x + w - 100, y + h - 12, 11, '#9fd0ff', 'left');
+    // nút bỏ qua
+    this.btn(ctx, x + w - 40, y + 8, 32, 22, '✖', 'tut-skip');
+
+    // ----- tô sáng phần tử liên quan -----
+    const ring = (rx, ry, rr, color) => {
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 4;
+      ctx.globalAlpha = pulse;
+      ctx.beginPath(); ctx.arc(rx, ry, rr + 6 + 3 * Math.sin(G.t * 5), 0, TAU); ctx.stroke();
+      ctx.restore();
+    };
+    if (step.hint === 'joy') ring(170, 560, 66, 'rgba(159,208,255,0.9)');
+    else if (step.hint === 'skill0') ring(this.skillBtns[0].x, this.skillBtns[0].y, this.skillBtns[0].r, 'rgba(255,215,94,0.95)');
+    else if (step.hint === 'potion') ring(this.potBtn.x, this.potBtn.y, this.potBtn.r, 'rgba(125,224,138,0.95)');
+
+    // ----- mũi tên chỉ mục tiêu trong thế giới -----
+    let target = null;
+    if (step.hint === 'enemy') {
+      let bd = 1e9;
+      for (const e of G.enemies) { if (!e.alive) continue; const d = dist2(p.x, p.y, e.x, e.y); if (d < bd) { bd = d; target = e; } }
+    } else if (step.hint === 'pickup') target = G.pickups[0] || null;
+    else if (step.hint === 'gate') target = { x: MAP.arenaGateX, y: 800 };
+    else if (step.hint === 'boss') target = (G.boss && G.boss.alive) ? G.boss : { x: MAP.arena.x, y: MAP.arena.y };
+    if (target && dist(p.x, p.y, target.x, target.y) > 200) {
+      const sx = target.x - G.cam.x, sy = target.y - G.cam.y;
+      const a = ang(p.x, p.y, target.x, target.y);
+      const ax = clamp(sx, 70, G.VW - 70), ay = clamp(sy, 120, G.VH - 200);
+      ctx.save();
+      ctx.translate(ax, ay - 46 - 6 * Math.sin(G.t * 4));
+      ctx.rotate(a + Math.PI / 2);
+      ctx.fillStyle = `rgba(255,215,94,${pulse})`;
+      ctx.beginPath();
+      ctx.moveTo(0, -16); ctx.lineTo(12, 10); ctx.lineTo(0, 4); ctx.lineTo(-12, 10);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ttext(ctx, '↓', ax, ay - 26, 16, `rgba(255,215,94,${pulse})`, 'center', UI_FONT, pulse, 'bold');
+    }
+  },
+
+  drawHelp(ctx) {
+    this.zones = [];
+    ctx.fillStyle = 'rgba(5,8,16,0.82)'; ctx.fillRect(0, 0, G.VW, G.VH);
+    const w = 780, h = 560, x = (G.VW - w) / 2, y = (G.VH - h) / 2;
+    this.panel(ctx, x, y, w, h, 0.97);
+    ttext(ctx, '❓ TRỢ GIÚP — CÁC KÝ HIỆU TRONG GAME', x + w / 2, y + 40, 24, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    const rows = [
+      ['🟠', 'Vòng CAM đổ đầy', 'AoE sắp nổ — CHẠY RA NGOÀI trước khi đầy'],
+      ['💥', 'Marker STACK', 'Cả nhóm đứng CHUNG một chỗ để chia sát thương'],
+      ['🔵', 'Marker SPREAD', 'Ngược lại: mỗi người TẢN RA một hướng'],
+      ['🔻', 'Marker TANK BUSTER', 'Đòn cực nặng vào tank — người khác tránh xa'],
+      ['👁️', 'GAZE (con mắt)', 'QUAY MẮT ĐI khỏi boss trước khi cast xong'],
+      ['🔥', 'Infernal Nail', 'Phá hủy NGAY trước khi đồng hồ cháy hết'],
+      ['🪓🌸', 'NPC đồng đội', 'Thancred giữ aggro, Alisaie hồi máu — hãy đứng gần'],
+      ['🌈', 'Limit Break', 'Đầy 100% thì bấm — chiêu cuối cực mạnh'],
+    ];
+    rows.forEach((r, i) => {
+      const ry = y + 84 + i * 44;
+      drawEmoji(ctx, r[0], x + 56, ry, 24);
+      ttext(ctx, r[1], x + 96, ry - 8, 16, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
+      ttext(ctx, r[2], x + 96, ry + 12, 14, '#c9d2e4', 'left');
+    });
+    ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · 1-5/Q/R trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
+    this.btn(ctx, x + w / 2 - 90, y + h - 44, 180, 32, 'Đã hiểu ✔', 'help-close');
+  },
+
+  objectiveText() {
+    const lines = [];
+    if (G.kills < TRASH_TOTAL) {
+      lines.push({ txt: `◆ Tiêu diệt tay sai Ifrit  (${G.kills}/${TRASH_TOTAL})`, color: '#ffd75e' });
+    } else if (!(G.boss && G.boss.engaged)) {
+      lines.push({ txt: '◆ Cổng đã mở — đến đấu trường!', color: '#7de08a' });
+    } else if (G.boss.alive) {
+      lines.push({ txt: `◆ Hạ gục Ifrit  (${Math.ceil(Math.max(0, G.boss.hp))}/${G.boss.maxhp})`, color: '#ff9c6b' });
+    }
+    if (G.fate.active) {
+      lines.push({ txt: `🌀 FATE: Săn Coeurl  (${G.fate.got}/${G.fate.need})`, color: '#6ea0ff' });
+    }
+    return lines;
+  },
+
+  // ================= VICTORY / DEFEAT / PAUSE =================
+  drawVictory(ctx) {
+    this.zones = [];
+    ctx.fillStyle = 'rgba(5,8,16,0.72)'; ctx.fillRect(0, 0, G.VW, G.VH);
+    // pháo hoa
+    if (Math.random() < 0.12) addBurst(rand(200, 1080), rand(120, 380), choice(['#ffd75e', '#7de08a', '#7cc7ff', '#ff9c6b']), 18, 240);
+    drawPartsUI(ctx);
+    const w = 700, h = 430, x = (G.VW - w) / 2, y = 90;
+    this.panel(ctx, x, y, w, h, 0.95);
+    ttext(ctx, '⚜ DUTY COMPLETE ⚜', 640, y + 62, 42, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, 'Bạn đã hạ gục Ifrit, Primal của Lửa!', 640, y + 104, 18, '#c9d2e4');
+    const rows = [
+      ['⏱ Thời gian', fmtTime(G.dutyTime)],
+      ['💀 Quái vật đã diệt', `${G.kills + (G.fate ? G.fate.got : 0)}`],
+      ['💰 Gil thu được', `${G.gil}`],
+      ['⭐ Cấp độ', `Lv ${G.player.level}`],
+      ['🗡️ Trang bị', `Vũ khí i${G.player.gear.weaponIlvl} · Giáp i${G.player.gear.armorIlvl}`],
+      ['🏅 Kỷ lục', (() => {
+        const k = 'ff14mock_best_' + G.player.jobId;
+        const best = +localStorage.getItem(k);
+        if (!best || G.dutyTime < best) { localStorage.setItem(k, Math.round(G.dutyTime)); return 'MỚI!'; }
+        return fmtTime(best);
+      })()],
+    ];
+    rows.forEach(([a, b2], i) => {
+      const ry = y + 150 + i * 36;
+      ttext(ctx, a, x + 80, ry, 17, '#8b93a8', 'left');
+      ttext(ctx, b2, x + w - 80, ry, 18, '#ffd75e', 'right', UI_FONT, 1, 'bold');
+    });
+    drawEmoji(ctx, '🎉', 640, y + 348, 44);
+    // nút
+    const bw = 250, bx = x + (w - bw * 2 - 30) / 2;
+    this.btn(ctx, bx, y + h - 96, bw, 56, '🔁 Chơi lại', 'replay');
+    this.btn(ctx, bx + bw + 30, y + h - 96, bw, 56, '🧭 Đổi Job', 'select');
+  },
+  drawDefeat(ctx) {
+    this.zones = [];
+    ctx.fillStyle = 'rgba(20,4,4,0.66)'; ctx.fillRect(0, 0, G.VW, G.VH);
+    const w = 560, h = 300, x = (G.VW - w) / 2, y = 180;
+    this.panel(ctx, x, y, w, h, 0.95);
+    drawEmoji(ctx, '💀', 640, y + 64, 56);
+    ttext(ctx, 'DUTY FAILED', 640, y + 130, 36, '#ff6b6b', 'center', TITLE_FONT, 1, 'bold');
+    ttext(ctx, G.boss && G.boss.engaged ? 'Ifrit vẫn đang túc trực...' : 'Eorzea cần bạn thử lại!', 640, y + 168, 16, '#c9d2e4');
+    const bw = 250, bx = x + (w - bw * 2 - 30) / 2;
+    this.btn(ctx, bx, y + h - 96, bw, 56, '⚡ Hồi sinh', 'respawn');
+    this.btn(ctx, bx + bw + 30, y + h - 96, bw, 56, '🧭 Đổi Job', 'select');
+  },
+  drawPause(ctx) {
+    this.zones = [];
+    ctx.fillStyle = 'rgba(5,8,16,0.7)'; ctx.fillRect(0, 0, G.VW, G.VH);
+    const w = 420, h = 330, x = (G.VW - w) / 2, y = 150;
+    this.panel(ctx, x, y, w, h, 0.95);
+    ttext(ctx, '⏸ TẠM DỪNG', 640, y + 50, 30, GOLD, 'center', TITLE_FONT, 1, 'bold');
+    this.btn(ctx, x + 60, y + 90, w - 120, 52, '▶ Tiếp tục', 'resume');
+    this.btn(ctx, x + 60, y + 152, w - 120, 52, '🔁 Chơi lại', 'replay');
+    this.btn(ctx, x + 60, y + 214, w - 120, 52, `🔊 Âm thanh: ${Snd.muted ? 'TẮT' : 'BẬT'}`, 'mute');
+    this.btn(ctx, x + 60, y + 276, w - 120, 44, '🧭 Về chọn Job', 'select');
+  },
+  btn(ctx, x, y, w, h, label, id) {
+    roundRect(ctx, x, y, w, h, 12);
+    ctx.fillStyle = 'rgba(44,58,102,0.95)'; ctx.fill();
+    ctx.strokeStyle = GOLD; ctx.lineWidth = 1.8; ctx.stroke();
+    ttext(ctx, label, x + w / 2, y + h / 2 + 1, 19, '#fff', 'center', UI_FONT, 1, 'bold');
+    this.zone(id, x, y, w, h);
+  }
+};
+
+// chữ tự xuống dòng
+function wrapText(ctx, txt, cx, y, maxW, lineH, color, align = 'center') {
+  const words = txt.split(' ');
+  const lines = [];
+  let cur = '';
+  ctx.font = `17px ${UI_FONT}`;
+  for (const w2 of words) {
+    const test = cur ? cur + ' ' + w2 : w2;
+    if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w2; }
+    else cur = test;
+  }
+  if (cur) lines.push(cur);
+  lines.forEach((l, i) => ttext(ctx, l, align === 'left' ? cx : cx, y + i * lineH, 17, color, align));
+}
+// particles vẽ ở toạ độ UI (màn victory)
+function drawPartsUI(ctx) {
+  for (const p of G.parts) {
+    const a = 1 - p.t / p.tmax;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * a, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}

@@ -1,0 +1,7 @@
+html,body{margin:0;padding:0;background:#000;overflow:hidden;height:100%;
+  overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#game{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block;background:#000}
+#rotate{display:none;position:fixed;inset:0;z-index:10;background:#0a0e1a;color:#d9c48f;
+  align-items:center;justify-content:center;text-align:center;font-family:Georgia,serif;font-size:26px;line-height:1.6}
+#rotate .rot-box{padding:32px;border:2px solid #d9c48f;border-radius:14px;background:#141a2e}
+@media (orientation:portrait){#rotate{display:flex}}
