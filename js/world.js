@@ -19,6 +19,13 @@ const World = {
       const a = i / 16 * TAU + 0.12;
       O.push([MAP.arena.x + Math.cos(a) * (MAP.arena.r + 40), MAP.arena.y + Math.sin(a) * (MAP.arena.r + 40), randi(34, 52)]);
     }
+    // vòng đá quanh đấu trường Titan + hầm dẫn vào
+    for (let i = 0; i < 14; i++) {
+      const a = i / 14 * TAU + 0.3;
+      O.push([MAP.titanArena.x + Math.cos(a) * (MAP.titanArena.r + 40), MAP.titanArena.y + Math.sin(a) * (MAP.titanArena.r + 40), randi(34, 52)]);
+    }
+    O.push([3260, 380, 42], [3260, 1220, 42], [3420, 300, 36], [3420, 1300, 36],
+           [3560, 380, 38], [3560, 1220, 38], [3820, 240, 34], [3820, 1360, 34]);
     this.obstacles = O.map(([x, y, r]) => ({ x, y, r }));
 
     this.lavas = [
@@ -34,6 +41,7 @@ const World = {
       { icon: '🥀', x: 1000, y: 620, s: 20 }, { icon: '🥀', x: 1520, y: 1100, s: 20 },
       { icon: '⛰️', x: 120, y: 500, s: 40 }, { icon: '⛰️', x: 3100, y: 1450, s: 44 },
       { icon: '🔥', x: 2520, y: 620, s: 24 }, { icon: '🔥', x: 2780, y: 1000, s: 24 },
+      { icon: '⛰️', x: 3350, y: 800, s: 40 }, { icon: '⛰️', x: 4560, y: 1450, s: 44 },
     ];
     // pattern nền
     const tile = document.createElement('canvas');
@@ -62,6 +70,7 @@ const World = {
     G.gates = [
       { id: 'start', x: MAP.barrierX, closed: true, anim: 1 },
       { id: 'boss', x: MAP.arenaGateX, closed: true, anim: 1 },
+      { id: 'titan', x: MAP.titanGateX, closed: true, anim: 1 },
     ];
   },
 
@@ -90,6 +99,15 @@ const World = {
     ctx.beginPath(); ctx.ellipse(A.x, A.y, A.r - 22, (A.r - 22) * 0.9, 0, 0, TAU); ctx.stroke();
     ctx.strokeStyle = 'rgba(217,196,143,0.22)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(A.x, A.y, A.r * 0.55, A.r * 0.5, 0, 0, TAU); ctx.stroke();
+    // đấu trường Titan
+    const TA = MAP.titanArena;
+    const gt = ctx.createRadialGradient(TA.x, TA.y, TA.r * 0.2, TA.x, TA.y, TA.r);
+    gt.addColorStop(0, 'rgba(72,64,52,0.75)');
+    gt.addColorStop(1, 'rgba(30,26,20,0.4)');
+    ctx.fillStyle = gt;
+    ctx.beginPath(); ctx.ellipse(TA.x, TA.y, TA.r, TA.r * 0.9, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(217,196,143,0.3)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.ellipse(TA.x, TA.y, TA.r - 22, (TA.r - 22) * 0.9, 0, 0, TAU); ctx.stroke();
     // FATE zone
     if (G.fate.active || G.fate.cooldown < 12) {
       const F = MAP.fateZone;
@@ -445,6 +463,8 @@ const World = {
     // đấu trường
     ctx.fillStyle = 'rgba(200,60,40,0.25)';
     ctx.beginPath(); ctx.ellipse(x + MAP.arena.x * sx, y + MAP.arena.y * sy, MAP.arena.r * sx, MAP.arena.r * sy, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(200,180,120,0.25)';
+    ctx.beginPath(); ctx.ellipse(x + MAP.titanArena.x * sx, y + MAP.titanArena.y * sy, MAP.titanArena.r * sx, MAP.titanArena.r * sy, 0, 0, TAU); ctx.fill();
     // cổng
     for (const g of G.gates) {
       if (g.closed) {
@@ -500,7 +520,7 @@ function collideWorld(o) {
   // giới hạn trong đấu trường khi boss đang chiến đấu
   const b = G.boss;
   if (b && b.engaged && b.alive) {
-    const A = MAP.arena;
+    const A = b.arena || MAP.arena;
     const d = dist(o.x, o.y, A.x, A.y);
     if (d > A.r - o.r - 8) {
       const a = ang(A.x, A.y, o.x, o.y);
@@ -515,13 +535,20 @@ function applyGates(p) {
     const R = p.r + 26;
     if (g.id === 'start') {
       if (p.x > g.x - R && p.x < g.x + R) p.x = (p.x <= g.x) ? g.x - R : g.x + R;
-    } else { // boss gate
+    } else if (g.id === 'boss') { // boss gate
       // trước khi trash hết: chặn không cho đi sang phải
       const trashDone = G.kills >= TRASH_TOTAL;
       if (!trashDone) {
         if (p.x > g.x - R) p.x = g.x - R;
       } else if (G.boss && G.boss.engaged && G.boss.alive) {
         if (p.x < g.x + R) p.x = g.x + R; // khoá trong đấu trường
+      }
+    } else if (g.id === 'titan') {
+      const titan = G.enemies.find(x => x.alive && x.def && x.def.titan);
+      if (g.closed && !(titan && titan.engaged)) {
+        if (p.x > g.x - R) p.x = g.x - R;
+      } else if (titan && titan.engaged) {
+        if (p.x < g.x + R) p.x = g.x + R; // khoá trong đấu trường Titan
       }
     }
   }

@@ -70,11 +70,13 @@ const ETYPES = {
   ifrit:  { name: 'Ifrit', icon: '', hp: 4300, dmg: 26, xp: 800, spd: 165, aggro: 2000, r: 58, isBoss: true, atkRange: 165, atkCd: 2.6, color: '#c9402a' },
 };
 
-// Map 3200x1600 — đi từ trái (start) sang phải (đấu trường Ifrit)
+// Map 4700x1600 — trái (start) → giữa (Ifrit) → phải (Titan)
 const MAP = {
-  w: 3200, h: 1600, startX: 260, startY: 800,
+  w: 4700, h: 1600, startX: 260, startY: 800,
   barrierX: 560, arenaGateX: 2050,
   arena: { x: 2650, y: 800, r: 470 },
+  titanGateX: 3260,
+  titanArena: { x: 4050, y: 800, r: 420 },
   fateZone: { x: 1600, y: 1150, r: 220 },
 };
 
@@ -85,6 +87,12 @@ const PACKS = [
   { id: 'b2', mobs: [['bomb', 1745, 930], ['bomb', 1825, 1005], ['imp', 1680, 1025]] },
 ];
 const TRASH_TOTAL = PACKS.reduce((s, p) => s + p.mobs.length, 0);
+
+// Trash vùng Titan (không tính TRASH_TOTAL — cổng titan mở khi Ifrit chết)
+const TITAN_PACKS = [
+  { id: 'c1', mobs: [['golem', 3400, 620], ['golem', 3480, 980]] },
+  { id: 'c2', mobs: [['sprite', 3620, 700], ['sprite', 3620, 900], ['golem', 3700, 800]] },
+];
 
 const DIALOGUES = [
   { who: 'Minfilia', icon: '👩', text: 'Chiến binh của Eorzea! Primal của lửa — IFITR — đã thức tỉnh tại Bowl of Embers.' },
@@ -101,7 +109,7 @@ const ALLY_DEFS = {
 };
 
 // ===== Trang bị rớt theo khu vực =====
-const ITEM_TIERS = { a1: 15, a2: 25, b1: 35, b2: 45, boss: 60 };
+const ITEM_TIERS = { a1: 15, a2: 25, b1: 35, b2: 45, boss: 60, c1: 70, c2: 70, titan: 90 };
 
 // ===== Hướng dẫn người mới (kết hợp nhiệm vụ) =====
 const TUT_STEPS = [
