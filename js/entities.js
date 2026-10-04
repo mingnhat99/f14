@@ -57,7 +57,7 @@ function dealToEnemy(e, amount, opts = {}) {
   const d = Math.max(1, amount * mult * (opts.crit ? 1 : 1));
   const dmgFinal = (e.vulnT || 0) > 0 ? d * 1.5 : d;
   e.hp -= dmgFinal;
-  if (e.def.titan && !e.shielded && (e.staggeredT || 0) <= 0) {
+  if (e.def.titan && !e.shielded && (e.staggeredT || 0) <= 0 && !e.cast) {
     const rate = { player: 0.30, tank: 0.35, healer: 0.08 }[opts.from || 'player'] || 0.30;
     e.stagger = Math.min(100, (e.stagger || 0) + dmgFinal * rate);
     if (e.stagger >= 100) titanStaggered(e, 5);
@@ -1357,6 +1357,7 @@ const TITAN_PHASES = [
 ];
 
 function castTitanAbility(e, id) {
+  if (id === 'gaol' && e.skipFirstGaol) { e.skipFirstGaol = false; return; }
   const tempo = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].tempo;
   const base = { landslide: 2.6, geocrush: 2.8, tumult: 2.2, bury: 2.6, crossslide: 2.4, bomb: 2.5, gaol: 2.6, fury: 7.0, upheaval: 2.4, mountainbuster: 2.6 }[id] || 2.6;
   const tmax = base * tempo * (e.rageNext ? 0.8 : 1);
@@ -1408,7 +1409,6 @@ function castTitanAbility(e, id) {
     for (const m of pair) if (m) addTelegraph({ owner: e, shape: 'circle', x: m.x, y: m.y, r: 85, tmax, dmg: 320 * e.atkBuff, label: 'Bomb' });
     G.toasts.push({ txt: '💣 SPREAD: 2 người đứng gần nhau bị ngắm — TẢN RA!', t: 0, tmax: 2, color: '#9fd0ff' });
   } else if (id === 'gaol') {
-    if (e.skipFirstGaol) { e.skipFirstGaol = false; e.cast = null; return; }
     // AI thích ứng: 60% giam player, 40% giam NPC gây damage thấp nhất (thường healer)
     const allies = G.allies.filter(a => a.alive);
     let tgt = G.player;
@@ -1491,6 +1491,51 @@ function updateTitan(e, dt) {
   e.atkBuffT = Math.max(0, e.atkBuffT - dt);
   if (e.atkBuffT <= 0 && !e.enraged && e.atkBuff > 1) e.atkBuff = Math.max(1, e.atkBuff - dt * 0.25);
   if ((e.staggeredT || 0) <= 0) e.stagger = Math.max(0, (e.stagger || 0) - 5 * dt); // decay
+  // Stagger Check đầu P2: 8s làm đầy gauge từ 0 (chạy theo đồng hồ thật, kể cả khi boss cast/choáng)
+  if (e.checkDone !== true && e.phaseIdx === 1 && !G.enemies.some(x => x.alive && (x.def.heart || x.def.gaol))) {
+    if (G.staggerCheck === null || G.staggerCheck === undefined) {
+      e.checkDone = false;
+    }
+    if (e.checkDone === false) {
+      e.stagger = 0;
+      G.staggerCheck = { t: 0, tmax: 8, titan: e };
+      e.checkDone = 'running';
+      G.banner = { txt: '⚡ STAGGER CHECK!', sub: 'LÀM RUNG CHUYỂN Titan trong 8 giây!', t: 0, tmax: 2 };
+      Snd.sfx('warn');
+    }
+  }
+  if (G.staggerCheck && G.staggerCheck.titan === e) {
+    G.staggerCheck.t += dt;
+    if (e.stagger >= 100 || G.staggerCheck.ok) {
+      e.skipFirstGaol = true;
+      G.staggerCheck = null;
+      e.checkDone = true;
+      G.toasts.push({ txt: '✅ STAGGER CHECK THÀNH CÔNG — bỏ qua Gaol đầu tiên!', t: 0, tmax: 2.4, color: '#7de08a' });
+    } else if (G.staggerCheck.t >= G.staggerCheck.tmax) {
+      G.staggerCheck = null;
+      e.checkDone = true;
+      e.hp = Math.min(e.maxhp, e.hp + e.maxhp * 0.04);
+      for (const m of partyMembers()) if (m.alive) hitMember(m, 220, 'Stagger Check thất bại');
+      e.atkBuff = Math.max(e.atkBuff, 1.2); e.atkBuffT = 20;
+      G.toasts.push({ txt: '❌ Stagger Check thất bại — Titan hồi máu + mạnh lên!', t: 0, tmax: 2.4, color: '#ff5b5b' });
+    }
+  }
+  // Phạt greed lưng: đứng sau Titan >4s → Seismic Slap (tích theo thời gian thực)
+  if (!e.greed) e.greed = {};
+  const rearBase = (e.face || 0) + Math.PI;
+  for (const m of partyMembers()) {
+    const key = m === G.player ? 'player' : m.def.id;
+    if (!m.alive || m.gaoled) { e.greed[key] = 0; continue; }
+    const d = dist(e.x, e.y, m.x, m.y);
+    const inRear = d < 380 && d > e.r && angDiff(ang(e.x, e.y, m.x, m.y), rearBase) < 0.9;
+    e.greed[key] = inRear ? (e.greed[key] || 0) + dt : 0;
+    if (e.greed[key] > 4 && !e.cast) {
+      e.greed[key] = 0;
+      addTelegraph({ owner: e, shape: 'sector', x: e.x, y: e.y, r: 340, ang: rearBase, spread: 1.9, tmax: 1.6, dmg: 340 * e.atkBuff, label: 'Seismic Slap' });
+      G.toasts.push({ txt: '🗿 Phạt đứng sau lưng — SEISMIC SLAP!', t: 0, tmax: 1.6, color: '#ff9c6b' });
+      Snd.sfx('rumble');
+    }
+  }
   if (e.stunT > 0) return; // flinch — updateEnemies đã trừ stunT
   if ((e.staggeredT || 0) > 0) { e.staggeredT -= dt; return; }
   if (e.shielded) { // trái tim đá (task 6): đứng im giữa sân
@@ -1532,51 +1577,6 @@ function updateTitan(e, dt) {
     Snd.sfx('rumble'); G.cam.shake = 14;
   }
   const phNow = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)];
-  // Stagger Check đầu P2: 8s làm đầy gauge từ 0
-  if (e.checkDone !== true && e.phaseIdx === 1 && !G.enemies.some(x => x.alive && (x.def.heart || x.def.gaol))) {
-    if (G.staggerCheck === null || G.staggerCheck === undefined) {
-      e.checkDone = false;
-    }
-    if (e.checkDone === false) {
-      e.stagger = 0;
-      G.staggerCheck = { t: 0, tmax: 8, titan: e };
-      e.checkDone = 'running';
-      G.banner = { txt: '⚡ STAGGER CHECK!', sub: 'LÀM RUNG CHUYỂN Titan trong 8 giây!', t: 0, tmax: 2 };
-      Snd.sfx('warn');
-    }
-  }
-  if (G.staggerCheck && G.staggerCheck.titan === e) {
-    G.staggerCheck.t += dt;
-    if (e.stagger >= 100 || G.staggerCheck.ok) {
-      e.skipFirstGaol = true;
-      G.staggerCheck = null;
-      e.checkDone = true;
-      G.toasts.push({ txt: '✅ STAGGER CHECK THÀNH CÔNG — bỏ qua Gaol đầu tiên!', t: 0, tmax: 2.4, color: '#7de08a' });
-    } else if (G.staggerCheck.t >= G.staggerCheck.tmax) {
-      G.staggerCheck = null;
-      e.checkDone = true;
-      e.hp = Math.min(e.maxhp, e.hp + e.maxhp * 0.04);
-      for (const m of partyMembers()) if (m.alive) hitMember(m, 220, 'Stagger Check thất bại');
-      e.atkBuff = Math.max(e.atkBuff, 1.2); e.atkBuffT = 20;
-      G.toasts.push({ txt: '❌ Stagger Check thất bại — Titan hồi máu + mạnh lên!', t: 0, tmax: 2.4, color: '#ff5b5b' });
-    }
-  }
-  // Phạt greed lưng: đứng sau Titan >4s → Seismic Slap
-  if (!e.greed) e.greed = {};
-  const rearBase = (e.face || 0) + Math.PI;
-  for (const m of partyMembers()) {
-    if (!m.alive || m.gaoled) continue;
-    const key = m === G.player ? 'player' : m.def.id;
-    const d = dist(e.x, e.y, m.x, m.y);
-    const inRear = d < 380 && d > e.r && angDiff(ang(e.x, e.y, m.x, m.y), rearBase) < 0.9;
-    e.greed[key] = inRear ? (e.greed[key] || 0) + dt : 0;
-    if (e.greed[key] > 4 && !e.cast) {
-      e.greed[key] = 0;
-      addTelegraph({ owner: e, shape: 'sector', x: e.x, y: e.y, r: 340, ang: rearBase, spread: 1.9, tmax: 1.6, dmg: 340 * e.atkBuff, label: 'Seismic Slap' });
-      G.toasts.push({ txt: '🗿 Phạt đứng sau lưng — SEISMIC SLAP!', t: 0, tmax: 1.6, color: '#ff9c6b' });
-      Snd.sfx('rumble');
-    }
-  }
   // Tức giận: player né sạch 3 telegraph liên tiếp → đòn kế nhanh hơn 20%
   if ((e.dodgeStreak || 0) >= 3) { e.dodgeStreak = 0; e.rageNext = true; }
   // soft enrage P3: sau 3 phút, mỗi 10s mạnh thêm 5%

@@ -119,6 +119,7 @@ function advanceDialogue() {
 // ----- các sự kiện lớn -----
 function bossDefeated() {
   G.victoryT = 1.8;
+  cancelOwnerTelegraphs(G.boss);
   G.cam.shake = 22;
   Snd.sfx('bigboom');
   G.flash = { color: '#fff0d0', t: 0.5, tmax: 0.5 };
