@@ -195,7 +195,7 @@ const World = {
     // bóng + telegraph dưới chân vẽ ở tầng khác; đây là thân
     const drawables = [];
     for (const e of G.enemies) if (e.alive) {
-      drawables.push({ y: e.y, kind: e.def.titan ? 'titan' : e.def.isBoss ? 'boss' : e.def.nail ? 'nail' : 'enemy', o: e });
+      drawables.push({ y: e.y, kind: e.def.titan ? 'titan' : e.def.isBoss ? 'boss' : e.def.heart ? 'heart' : e.def.nail ? 'nail' : 'enemy', o: e });
     }
     for (const a of G.allies || []) {
       if (a.alive) drawables.push({ y: a.y, kind: 'ally', o: a });
@@ -207,6 +207,7 @@ const World = {
     for (const d of drawables) {
       if (d.kind === 'titan') this.drawTitan(ctx, d.o);
       if (d.kind === 'boss') this.drawIfrit(ctx, d.o);
+      else if (d.kind === 'heart') this.drawHeart(ctx, d.o);
       else if (d.kind === 'nail') this.drawNail(ctx, d.o);
       else if (d.kind === 'enemy') this.drawEnemy(ctx, d.o);
       else if (d.kind === 'ally') this.drawAlly(ctx, d.o);
@@ -387,6 +388,27 @@ const World = {
     ctx.fillStyle = fk < 0.3 ? '#ff3b3b' : '#ffd75e';
     ctx.fillRect(e.x - w / 2 + 1, e.y - 51.5, (w - 2) * fk, 3);
     ttext(ctx, 'Infernal Nail', e.x, e.y - 60, 11, '#ff9c6b');
+  },
+  drawHeart(ctx, e) {
+    this.drawShadow(ctx, e.x, e.y, 18);
+    const gl = 0.6 + 0.4 * Math.sin(G.t * 8);
+    ctx.save();
+    ctx.translate(e.x, e.y - 8);
+    ctx.rotate(Math.PI / 4);
+    const g = ctx.createLinearGradient(-18, -18, 18, 18);
+    g.addColorStop(0, '#e8dcff'); g.addColorStop(1, '#8a72c8');
+    ctx.fillStyle = g;
+    ctx.fillRect(-16, -16, 32, 32);
+    ctx.strokeStyle = `rgba(220,200,255,${gl})`; ctx.lineWidth = 3;
+    ctx.strokeRect(-16, -16, 32, 32);
+    ctx.restore();
+    const w = 56, hpk = clamp(e.hp / e.maxhp, 0, 1), fk = clamp(e.fuse / 12, 0, 1);
+    ctx.fillStyle = 'rgba(10,14,26,0.8)'; ctx.fillRect(e.x - w / 2, e.y - 44, w, 6);
+    ctx.fillStyle = '#c8b8ff'; ctx.fillRect(e.x - w / 2 + 1, e.y - 43, (w - 2) * hpk, 4);
+    ctx.fillStyle = 'rgba(10,14,26,0.8)'; ctx.fillRect(e.x - w / 2, e.y - 52, w, 4);
+    ctx.fillStyle = fk < 0.3 ? '#ff3b3b' : '#ffd75e';
+    ctx.fillRect(e.x - w / 2 + 1, e.y - 51.5, (w - 2) * fk, 3);
+    ttext(ctx, 'Heart of Stone', e.x, e.y - 62, 12, '#c8b8ff', 'center', UI_FONT, 1, 'bold');
   },
   drawIfrit(ctx, e) {
     const t = G.t;

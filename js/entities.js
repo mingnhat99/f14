@@ -52,6 +52,7 @@ function playerPotency(p, pot, opts = {}) {
 }
 function dealToEnemy(e, amount, opts = {}) {
   if (!e.alive) return 0;
+  if (e.shielded) { addText('KHÔNG THẤM', e.x, e.y - e.r - 12, '#8b93a8', 14); return 0; }
   const mult = 200 / (200 + (e.defMul || 0));
   const d = Math.max(1, amount * mult * (opts.crit ? 1 : 1));
   const dmgFinal = (e.vulnT || 0) > 0 ? d * 1.5 : d;
@@ -460,8 +461,13 @@ function killEnemy(e) {
   Snd.sfx('death');
   if (G.player.target === e) retarget(G.player);
   if (e.fate) G.fate.got++;
-  if (!e.fate && !e.def.isBoss && !e.def.nail) G.kills++;
+  if (!e.fate && !e.def.isBoss && !e.def.nail && !e.def.noCount) G.kills++;
   if (e.def.isBoss) { if (e.def.titan) bossDefeated(); else ifritDefeated(); }
+  if (e.def.heart && G.boss && G.boss.alive && G.boss.def.titan) {
+    G.boss.shielded = false;
+    titanStaggered(G.boss, 6);
+    G.toasts.push({ txt: '💫 Trái tim vỡ — Titan choáng 6s, DỒN DAMAGE!', t: 0, tmax: 2.4, color: '#ffe066' });
+  }
 }
 
 function updateEnemies(dt) {
@@ -484,6 +490,7 @@ function updateEnemies(dt) {
     }
     e.dots = e.dots.filter(d => d.t > 0);
 
+    if (e.def.heart) { updateHeart(e, dt); continue; }
     if (e.def.nail) { updateNail(e, dt); continue; }
     if (e.def.titan) { updateTitan(e, dt); continue; }
     if (e.def.isBoss) { updateIfrit(e, dt); continue; }
@@ -781,6 +788,11 @@ function enmityTarget(e) {
 function hitMember(m, dmg, label) {
   if (m === G.player) damagePlayer(dmg, label);
   else damageAlly(m, dmg, label);
+}
+function after(sec, fn) { G.delayed.push({ t: sec, fn }); }
+function wipeParty(label) {
+  for (const m of partyMembers()) if (m.alive) hitMember(m, 99999, label);
+  G.cam.shake = 20; Snd.sfx('fail');
 }
 function damageAlly(a, amount, label) {
   if (!a.alive) return;
@@ -1386,9 +1398,18 @@ function updateTitan(e, dt) {
     hitMember(clawTgt, e.def.dmg * 1.15 * e.atkBuff);
     addSlash(clawTgt.x, clawTgt.y, ang(e.x, e.y, clawTgt.x, clawTgt.y), '#e0c9a0');
   }
+  // phase trái tim đá tại 70%
+  if (!e.heartDone && e.hp < e.maxhp * 0.7) {
+    e.heartDone = true;
+    e.cast = null;
+    cancelOwnerTelegraphs(e);
+    spawnHeart(e);
+    G.cam.shake = 12; Snd.sfx('rumble');
+    return;
+  }
   // gate phase theo %HP
   const ph = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)];
-  if (e.phaseIdx < TITAN_PHASES.length - 1 && e.hp < e.maxhp * ph.gate && e.heartDone) {
+  if (e.phaseIdx < TITAN_PHASES.length - 1 && e.hp < e.maxhp * ph.gate && e.heartDone && !G.enemies.some(x => x.alive && x.def.heart)) {
     e.phaseIdx++;
     e.rotIdx = 0;
     e.cast = null;
@@ -1416,4 +1437,22 @@ function updateTitan(e, dt) {
 }
 function cancelOwnerTelegraphs(owner) {
   G.telegraphs = G.telegraphs.filter(t => t.owner !== owner);
+}
+
+// ---------- HEART OF STONE (P1.5) ----------
+function spawnHeart(titan) {
+  const A = MAP.titanArena;
+  const h = spawnEnemy('heart', A.x, A.y - 120, { fuse: 12 });
+  h.aggro = true;
+  titan.shielded = true;
+  G.banner = { txt: '💠 TRÁI TIM ĐÁ 💠', sub: 'PHÁ HỦY trong 12 giây — nếu không TOÀN BỘ GỤC NGÃ!', t: 0, tmax: 2.6 };
+  G.toasts.push({ txt: '💠 Tập trung DPS vào Trái Tim ĐÁ — 12s!', t: 0, tmax: 2.6, color: '#c8b8ff' });
+  Snd.sfx('rumble');
+}
+function updateHeart(e, dt) {
+  e.fuse -= dt;
+  if (e.fuse <= 0 && e.alive) {
+    e.alive = false;
+    wipeParty('Heart of Stone — không phá kịp!');
+  }
 }

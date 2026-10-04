@@ -11,6 +11,7 @@ const G = {
   fate: { active: false, cooldown: 25, got: 0, need: 5, timeLeft: 0 },
   boss: null, ifritDead: false, kills: 0, gil: 0, hintT: 0, dmgFlash: 0, flash: null,
   deathT: 0, victoryT: 0, demo: Q.get('demo') === '1', demoMove: null,
+  delayed: [],
 };
 
 // ----- khởi tạo -----
@@ -60,6 +61,7 @@ function resize() {
 function buildDuty() {
   G.enemies = []; G.parts = []; G.texts = []; G.projs = []; G.pickups = [];
   G.telegraphs = []; G.slashes = []; G.rings = []; G.markers = [];
+  G.delayed = [];
   G.player = makePlayer(G.selJob);
   G.kills = 0; G.gil = 0; G.paused = false; G.helpOpen = false;
   G.banner = null; G.toasts = []; G.dmgFlash = 0; G.flash = null;
@@ -376,6 +378,10 @@ function update(dt) {
   G.dmgFlash = Math.max(0, G.dmgFlash - dt * 2.2);
   if (G.flash) { G.flash.t -= dt; if (G.flash.t <= 0) G.flash = null; }
   G.hintT = Math.max(0, G.hintT - dt);
+  for (const d of G.delayed) d.t -= dt;
+  const fireNow = G.delayed.filter(d => d.t <= 0);
+  G.delayed = G.delayed.filter(d => d.t > 0);
+  for (const d of fireNow) d.fn();
 
   if (G.state === 'dialogue') return;
   if (G.state !== 'duty') { updateParts(dt); return; }
