@@ -1608,6 +1608,27 @@ function updateTitan(e, dt) {
 function cancelOwnerTelegraphs(owner) {
   G.telegraphs = G.telegraphs.filter(t => t.owner !== owner);
 }
+function resetTitanFight() {
+  const e = G.boss;
+  if (!e || !e.def.titan) return;
+  e.hp = e.maxhp;
+  e.engaged = false;
+  e.cast = null; e.stunT = 0;
+  e.stagger = 0; e.staggeredT = 0; e.vulnT = 0; e.shielded = false;
+  e.phaseIdx = 0; e.rotIdx = 0; e.abilityCd = 2.5; e.clawCd = 1.5;
+  e.heartDone = false; e.checkDone = false; e.skipFirstGaol = false;
+  e.greed = {}; e.dodgeStreak = 0; e.rageNext = false; e.p3T = 0; e.enrageAcc = 0;
+  e.enraged = false; e.atkBuff = 1; e.atkBuffT = 0;
+  e.x = MAP.titanArena.x; e.y = MAP.titanArena.y - 40;
+  for (const en of G.enemies) if (en.alive && (en.def.gaol || en.def.heart)) en.alive = false;
+  for (const en of G.enemies) if (en.member) en.member.gaoled = null;
+  cancelOwnerTelegraphs(e);
+  G.markers = [];
+  G.staggerCheck = null;
+  G.delayed = [];
+  const gt = G.gates.find(g => g.id === 'titan');
+  if (gt) gt.closed = false;
+}
 
 // ---------- HEART OF STONE (P1.5) ----------
 function spawnHeart(titan) {

@@ -136,6 +136,15 @@ function respawnPlayer() {
   // đồng đội hồi sinh cùng
   for (const a of G.allies) { a.alive = true; a.hp = a.maxhp; a.x = p.x + rand(-40, 40); a.y = p.y + 42; a.deadT = 0; }
   G.markers = [];
+  if (inArena && G.boss.def.titan) {
+    resetTitanFight();
+    p.x = MAP.titanGateX - 90; p.y = MAP.titanArena.y;
+    p.weaknessT = 0; // thử lại = lượt mới hoàn toàn, không phạt weakness
+    for (const a of G.allies) { a.alive = true; a.hp = a.maxhp; a.deadT = 0; a.x = p.x - 30; a.y = p.y + 36; }
+    G.toasts.push({ txt: '🗿 Thử lại: Titan đã hồi phục hoàn toàn!', t: 0, tmax: 2.6, color: '#e0c9a0' });
+    G.state = 'duty';
+    return;
+  }
   if (inArena) {
     // Ifrit về giữa, hồi 25% máu
     G.boss.hp = Math.min(G.boss.maxhp, G.boss.hp + G.boss.maxhp * 0.25);

@@ -562,14 +562,19 @@ const HUD = {
       ['🔥', 'Infernal Nail', 'Phá hủy NGAY trước khi đồng hồ cháy hết'],
       ['🪓🌸', 'NPC đồng đội', 'Thancred giữ aggro, Alisaie hồi máu — hãy đứng gần'],
       ['🌈', 'Limit Break', 'Đầy 100% thì bấm — chiêu cuối cực mạnh'],
+      ['⚡', 'STAGGER (thanh vàng)', 'Đánh liên tục để làm đầy — đầy 100 Titan CHOÁNG, nhận thêm damage'],
+      ['🛡️', 'COUNTER (nút 6)', 'Đòn cast XANH: lại gần bấm 🛡 đúng lúc để PARRY — không thì cả team ăn 80% HP'],
+      ['💠', 'Heart of Stone', 'Phá trong 12s khi xuất hiện — fail là WIPE cả team'],
+      ['🪨', 'Granite Gaol', 'Cũi đá giam 1 người — PHÁ CÙI trong 10s nếu không người đó chết'],
+      ['🌋', 'Earthen Fury', '3 đợt quét sân — chỉ góc XANH an toàn, đứng sai 1 lần là wipe'],
     ];
     rows.forEach((r, i) => {
-      const ry = y + 84 + i * 44;
+      const ry = y + 74 + i * 33;
       drawEmoji(ctx, r[0], x + 56, ry, 24);
       ttext(ctx, r[1], x + 96, ry - 8, 16, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
       ttext(ctx, r[2], x + 96, ry + 12, 14, '#c9d2e4', 'left');
     });
-    ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · 1-5/Q/R trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
+    ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · 1-6/Q/R trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
     this.btn(ctx, x + w / 2 - 90, y + h - 44, 180, 32, 'Đã hiểu ✔', 'help-close');
   },
 
@@ -579,6 +584,8 @@ const HUD = {
       lines.push({ txt: `◆ Tiêu diệt tay sai Ifrit  (${G.kills}/${TRASH_TOTAL})`, color: '#ffd75e' });
     } else if (!(G.boss && G.boss.engaged)) {
       lines.push({ txt: '◆ Cổng đã mở — đến đấu trường!', color: '#7de08a' });
+    } else if (G.ifritDead && G.boss && G.boss.alive && G.boss.def.titan) {
+      lines.push({ txt: `◆ Hạ gục Titan  (${Math.ceil(Math.max(0, G.boss.hp))}/${G.boss.maxhp})`, color: '#e0c9a0' });
     } else if (G.boss.alive) {
       lines.push({ txt: `◆ Hạ gục Ifrit  (${Math.ceil(Math.max(0, G.boss.hp))}/${G.boss.maxhp})`, color: '#ff9c6b' });
     }
@@ -598,7 +605,7 @@ const HUD = {
     const w = 700, h = 430, x = (G.VW - w) / 2, y = 90;
     this.panel(ctx, x, y, w, h, 0.95);
     ttext(ctx, '⚜ DUTY COMPLETE ⚜', G.VW / 2, y + 62, 42, GOLD, 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, 'Bạn đã hạ gục Ifrit, Primal của Lửa!', G.VW / 2, y + 104, 18, '#c9d2e4');
+    ttext(ctx, 'Bạn đã hạ gục Titan, Primal của Đất — The Navel hoàn thành!', G.VW / 2, y + 104, 18, '#c9d2e4');
     const rows = [
       ['⏱ Thời gian', fmtTime(G.dutyTime)],
       ['💀 Quái vật đã diệt', `${G.kills + (G.fate ? G.fate.got : 0)}`],
@@ -630,7 +637,7 @@ const HUD = {
     this.panel(ctx, x, y, w, h, 0.95);
     drawEmoji(ctx, '💀', G.VW / 2, y + 64, 56);
     ttext(ctx, 'DUTY FAILED', G.VW / 2, y + 130, 36, '#ff6b6b', 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, G.boss && G.boss.engaged ? 'Ifrit vẫn đang túc trực...' : 'Eorzea cần bạn thử lại!', G.VW / 2, y + 168, 16, '#c9d2e4');
+    ttext(ctx, G.boss && G.boss.engaged ? (G.boss.def.titan ? 'Titan vẫn đang túc trực...' : 'Ifrit vẫn đang túc trực...') : 'Eorzea cần bạn thử lại!', G.VW / 2, y + 168, 16, '#c9d2e4');
     const bw = 250, bx = x + (w - bw * 2 - 30) / 2;
     this.btn(ctx, bx, y + h - 96, bw, 56, '⚡ Hồi sinh', 'respawn');
     this.btn(ctx, bx + bw + 30, y + h - 96, bw, 56, '🧭 Đổi Job', 'select');
