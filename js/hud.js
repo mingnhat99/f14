@@ -292,11 +292,19 @@ const HUD = {
     const b = G.boss;
     if (b && b.engaged && b.alive) {
       const bbw = 560, bbx = (G.VW - bbw) / 2, bby = 58;
-      ttext(ctx, 'IFRIT — PRIMAL CỦA LỬA', cx, bby - 6, 15, '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
+      ttext(ctx, b.def.title || 'IFRIT — PRIMAL CỦA LỬA', cx, bby - 6, 15, b.def.titan ? '#e0c9a0' : '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
       this.bar(ctx, bbx, bby, bbw, 20, b.hp / b.maxhp, '#c9402a');
       ttext(ctx, `${Math.ceil(Math.max(0, b.hp))} / ${b.maxhp}`, cx, bby + 10, 12, '#fff', 'center', UI_FONT, 1, 'bold');
       if (b.atkBuff > 1) ttext(ctx, `🔥 ENRAGE x${b.atkBuff.toFixed(2)}`, bbx + bbw - 4, bby - 6, 12, '#ff5b5b', 'right');
-      if (b.cast) {
+      if (b.def.titan) {
+        const sk = clamp((b.stagger || 0) / 100, 0, 1);
+        this.bar(ctx, bbx, bby + 22, bbw, 10, sk, sk > 0.7 ? '#ffef9a' : '#ffe066');
+        ttext(ctx, 'STAGGER', bbx + 46, bby + 27, 9, '#1a1408', 'center', UI_FONT, 1, 'bold');
+        if (b.cast) {
+          this.bar(ctx, bbx, bby + 36, bbw, 14, b.cast.t / b.cast.tmax, b.cast.color || '#ffd75e', 'rgba(20,16,8,0.9)');
+          ttext(ctx, `⚒ ${b.cast.name}${b.cast.counterable ? '  ⟵ COUNTER! (6)' : ''}`, cx, bby + 43, 11, b.cast.counterable ? '#0a4a5a' : '#1a1408', 'center', UI_FONT, 1, 'bold');
+        }
+      } else if (b.cast) {
         this.bar(ctx, bbx, bby + 24, bbw, 14, b.cast.t / b.cast.tmax, '#ffd75e', 'rgba(20,16,8,0.9)');
         ttext(ctx, `⚒ ${b.cast.name}`, cx, bby + 31, 11, '#1a1408', 'center', UI_FONT, 1, 'bold');
       }

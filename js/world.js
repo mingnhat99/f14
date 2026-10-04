@@ -461,6 +461,7 @@ const World = {
     ctx.beginPath(); ctx.moveTo(-e.r * 0.5, e.r * 0.1); ctx.lineTo(-e.r * 0.1, -e.r * 0.2); ctx.lineTo(e.r * 0.3, e.r * 0.25); ctx.stroke();
     ctx.fillStyle = `rgba(255,210,90,${gl})`;
     for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * 17, -e.r * 0.25, 7, 4.5, 0, 0, TAU); ctx.fill(); }
+    if ((e.staggeredT || 0) > 0) drawEmoji(ctx, '💫', 0, -e.r - 34, 30);
     if (e.flashT > 0) {
       ctx.globalAlpha = e.flashT * 5;
       ctx.fillStyle = '#fff';

@@ -54,13 +54,19 @@ function dealToEnemy(e, amount, opts = {}) {
   if (!e.alive) return 0;
   const mult = 200 / (200 + (e.defMul || 0));
   const d = Math.max(1, amount * mult * (opts.crit ? 1 : 1));
-  e.hp -= d;
+  const dmgFinal = (e.vulnT || 0) > 0 ? d * 1.5 : d;
+  e.hp -= dmgFinal;
+  if (e.def.titan && !e.shielded && (e.staggeredT || 0) <= 0) {
+    const rate = { player: 0.30, tank: 0.35, healer: 0.08 }[opts.from || 'player'] || 0.30;
+    e.stagger = Math.min(100, (e.stagger || 0) + dmgFinal * rate);
+    if (e.stagger >= 100) titanStaggered(e, 5);
+  }
   e.flashT = 0.12;
   // ghi nhận thù hận (enmity): tank nhân hệ số, healer vừa đánh vừa hồi
   if (!e.enmity) e.enmity = { player: 0, tank: 0, healer: 0 };
   const from = opts.from || 'player';
   e.enmity[from] += d * (from === 'tank' ? 5 : from === 'healer' ? 1.5 : 1);
-  addText(Math.round(d), e.x + rand(-14, 14), e.y - e.r - 12,
+  addText(Math.round(dmgFinal), e.x + rand(-14, 14), e.y - e.r - 12,
     opts.crit ? '#ff9c2b' : (opts.auto ? '#f2f2f2' : '#ffd75e'), opts.crit ? 23 : 17, opts.crit);
   if (!G.player.target || G.player.target.dead || !G.player.target.alive) { G.player.target = e; G.tut && (G.tut.count.target = 1); }
   e.aggro = true;
@@ -1305,6 +1311,18 @@ function castTitanAbility(e, id) {
       G.cam.shake = 8; Snd.sfx('boom');
     };
   }
+}
+
+function titanStaggered(e, dur) {
+  e.stagger = 0;
+  e.staggeredT = dur;
+  e.vulnT = dur;
+  e.cast = null;
+  cancelOwnerTelegraphs(e);
+  G.banner = { txt: '💫 TITAN CHOÁNG!', sub: 'Dồn damage — nhận thêm 50% sát thương!', t: 0, tmax: 1.8 };
+  addText('STAGGER!', e.x, e.y - e.r - 30, '#ffe066', 22, true);
+  Snd.sfx('confirm'); G.cam.shake = 10;
+  for (let i = 0; i < 20; i++) addPart(e.x + rand(-e.r, e.r), e.y + rand(-40, 20), rand(-120, 120), rand(-240, -60), '#ffe066', rand(3, 6), 0.8);
 }
 
 function updateTitan(e, dt) {
