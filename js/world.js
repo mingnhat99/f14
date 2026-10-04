@@ -518,10 +518,18 @@ const World = {
       ctx.globalAlpha = 1;
     }
     if (e.cast && e.cast.counterable) {
-      const pl = 0.6 + 0.4 * Math.sin(G.t * 12);
+      const last1s = e.cast.tmax - e.cast.t < 1;
+      const pl = 0.6 + 0.4 * Math.sin(G.t * (last1s ? 30 : 12)); // 1s cuối nhấp nháy gấp
       ctx.strokeStyle = `rgba(180,240,255,${pl})`;
-      ctx.lineWidth = 6;
+      ctx.lineWidth = last1s ? 9 : 6;
       ctx.beginPath(); ctx.ellipse(0, 0, e.r + 16, (e.r + 16) * 0.95, 0, 0, TAU); ctx.stroke();
+      // vòng đứt nét chỉ TẦM counter (phải đứng trong vòng này)
+      ctx.setLineDash([16, 12]);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(110,231,255,${0.35 + 0.25 * Math.sin(G.t * 6)})`;
+      ctx.beginPath(); ctx.ellipse(0, 0, e.r + 220, (e.r + 220) * 0.95, 0, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      drawEmoji(ctx, '🛡️', 0, -e.r - 66, 26, pl);
     }
     ctx.restore();
     if (!e.engaged) {
@@ -529,12 +537,15 @@ const World = {
       drawEmoji(ctx, '💤', e.x + 38, e.y - e.r - 26, 18, 0.8);
     }
     if (e.cast) {
-      const w = 90, k = e.cast.t / e.cast.tmax;
-      ctx.fillStyle = 'rgba(10,14,26,0.85)';
-      ctx.fillRect(e.x - w / 2, e.y - e.r - 44, w, 9);
+      const w = 170, k = e.cast.t / e.cast.tmax;
+      ctx.fillStyle = 'rgba(10,14,26,0.9)';
+      ctx.fillRect(e.x - w / 2, e.y - e.r - 50, w, 12);
+      ctx.strokeStyle = 'rgba(217,196,143,0.6)'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(e.x - w / 2, e.y - e.r - 50, w, 12);
       ctx.fillStyle = e.cast.color || '#ffd75e';
-      ctx.fillRect(e.x - w / 2 + 1, e.y - e.r - 43, (w - 2) * clamp(k, 0, 1), 7);
-      ttext(ctx, e.cast.name, e.x, e.y - e.r - 54, 13, e.cast.counterable ? '#9fe8ff' : '#ffd9a0', 'center', UI_FONT, 0.95, 'bold');
+      ctx.fillRect(e.x - w / 2 + 1.5, e.y - e.r - 48.5, (w - 3) * clamp(k, 0, 1), 9);
+      const castCol = e.cast.counterable ? '#9fe8ff' : '#ffd9a0';
+      ttext(ctx, `${e.cast.counterable ? '🛡 ' : ''}${e.cast.name}${e.cast.counterable ? ' — BẤM 6!' : ''}`, e.x, e.y - e.r - 64, 16, castCol, 'center', UI_FONT, 0.95, 'bold');
     }
   },
 

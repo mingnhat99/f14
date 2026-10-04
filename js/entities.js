@@ -1179,9 +1179,19 @@ function drawTelegraphs(ctx) {
       ctx.ellipse(0, 0, tg.r, tg.r * 0.62, 0, a0, a0 + tg.spread); ctx.closePath();
       ctx.fillStyle = 'rgba(255,120,20,0.14)'; ctx.fill(); ctx.stroke();
       if (tg.safeAng !== undefined) {
-        ctx.strokeStyle = `rgba(110,255,170,${0.7 + 0.3 * Math.sin(G.t * 10)})`;
-        ctx.lineWidth = 6;
+        // vùng AN TOÀN: tô xanh + arc dày + nhấp nháy — chạy vào đây
+        const pl = 0.7 + 0.3 * Math.sin(G.t * 10);
+        ctx.beginPath(); ctx.moveTo(0, 0);
+        ctx.ellipse(0, 0, tg.r * 0.98, tg.r * 0.98 * 0.62, 0, tg.safeAng - Math.PI / 4, tg.safeAng + Math.PI / 4); ctx.closePath();
+        ctx.fillStyle = `rgba(80,255,150,${0.22 + 0.08 * Math.sin(G.t * 10)})`; ctx.fill();
+        ctx.strokeStyle = `rgba(110,255,170,${pl})`;
+        ctx.lineWidth = 9;
         ctx.beginPath(); ctx.ellipse(0, 0, tg.r * 0.9, tg.r * 0.9 * 0.62, 0, tg.safeAng - Math.PI / 4, tg.safeAng + Math.PI / 4); ctx.stroke();
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 8]);
+        ctx.strokeStyle = `rgba(110,255,170,${pl * 0.8})`;
+        ctx.beginPath(); ctx.ellipse(0, 0, tg.r * 0.45, tg.r * 0.45 * 0.62, 0, tg.safeAng - Math.PI / 4, tg.safeAng + Math.PI / 4); ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
     ctx.restore();
@@ -1377,6 +1387,8 @@ function castTitanAbility(e, id) {
   } else if (id === 'geocrush') {
     addTelegraph({ owner: e, shape: 'circle', follow: e, r: 230, tmax, dmg: 260 * e.atkBuff, knockback: 520, label: 'Geocrush' });
   } else if (id === 'tumult') {
+    // không thể né — báo trước rõ ràng để healer sẵn sàng
+    G.toasts.push({ txt: '🌋 TUMULT — cả team trúng đòn, máu phải đầy!', t: 0, tmax: 1.8, color: '#ffd75e' });
     e.cast.onDone = (self) => {
       for (const m of partyMembers()) if (m.alive) hitMember(m, 160 * self.atkBuff, 'Tumult');
       G.cam.shake = 8; Snd.sfx('boom');
@@ -1417,10 +1429,9 @@ function castTitanAbility(e, id) {
     }
     e.cast.onDone = (self) => { if (tgt.alive && !tgt.gaoled) spawnGaol(tgt); };
   } else if (id === 'mountainbuster') {
-    e.cast.onDone = (self) => {
-      G.markers.push({ type: 'tb', followMember: enmityTarget(self), t: 0, tmax: 1.2, dmg: 700 * self.atkBuff, label: 'Mountain Buster' });
-      G.toasts.push({ txt: '🔻 MOUNTAIN BUSTER — tank ăn đòn nặng, người khác tránh xa!', t: 0, tmax: 2, color: '#e0b0ff' });
-    };
+    // marker hiện ngay từ đầu cast — cảnh báo đủ dài cho tank + người đứng gần
+    G.markers.push({ type: 'tb', followMember: enmityTarget(e), t: 0, tmax, dmg: 700 * e.atkBuff, label: 'Mountain Buster', owner: e });
+    G.toasts.push({ txt: '🔻 MOUNTAIN BUSTER — tank ăn đòn nặng, người khác tránh xa!', t: 0, tmax: 2, color: '#e0b0ff' });
   } else if (id === 'upheaval') {
     e.cast.counterable = true;
     e.cast.color = '#6ee7ff';
@@ -1473,6 +1484,7 @@ function titanStaggered(e, dur) {
   e.vulnT = dur;
   e.cast = null;
   cancelOwnerTelegraphs(e);
+  G.markers = G.markers.filter(m => m.owner !== e); // marker gắn với cast (vd Mountain Buster) cũng bị ngắt
   G.banner = { txt: '💫 TITAN CHOÁNG!', sub: 'Dồn damage — nhận thêm 50% sát thương!', t: 0, tmax: 1.8 };
   addText('STAGGER!', e.x, e.y - e.r - 30, '#ffe066', 22, true);
   Snd.sfx('confirm'); G.cam.shake = 10;
@@ -1544,6 +1556,10 @@ function updateTitan(e, dt) {
   }
   if (e.cast) {
     e.cast.t += dt;
+    if (e.cast.id === 'tumult' && Math.random() < 0.6) { // bụi đất rung khắp arena
+      const A2 = MAP.titanArena;
+      addPart(A2.x + rand(-A2.r, A2.r) * 0.8, A2.y + rand(-A2.r, A2.r) * 0.5, rand(-30, 30), rand(-70, -20), '#b8a878', rand(2, 5), 0.6);
+    }
     if (e.cast.t >= e.cast.tmax) { const c = e.cast; e.cast = null; if (c.onDone) c.onDone(e); }
     return;
   }

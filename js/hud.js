@@ -325,6 +325,24 @@ const HUD = {
       ttext(ctx, `${Math.ceil(sc.tmax - sc.t)}s`, x + w - 40, y + 34, 20, '#ff9c6b', 'center', UI_FONT, 1, 'bold');
     }
 
+    // ----- prompt COUNTER khi Titan ra đòn xanh -----
+    if (G.boss && G.boss.engaged && G.boss.cast && G.boss.cast.counterable && G.player.alive) {
+      const c = G.boss.cast;
+      const left = c.tmax - c.t;
+      const near = dist(G.player.x, G.player.y, G.boss.x, G.boss.y) <= 220 + G.boss.r;
+      const fast = left < 1;
+      const pl = 0.6 + 0.4 * Math.sin(G.t * (fast ? 26 : 10));
+      const w2 = 420, x2 = (G.VW - w2) / 2, y2 = 196;
+      ctx.globalAlpha = 0.92;
+      roundRect(ctx, x2, y2, w2, 54, 14);
+      ctx.fillStyle = 'rgba(20,60,80,0.9)'; ctx.fill();
+      ctx.strokeStyle = `rgba(110,231,255,${pl})`; ctx.lineWidth = 3; ctx.stroke();
+      ctx.globalAlpha = 1;
+      drawEmoji(ctx, '🛡️', x2 + 36, y2 + 27, 30, pl);
+      ttext(ctx, near ? `BẤM [6] ĐỂ COUNTER — còn ${left.toFixed(1)}s!` : `LẠI GẦN TITAN ĐỂ COUNTER — ${left.toFixed(1)}s`, x2 + w2 / 2 + 14, y2 + 22, 17, near ? '#bff2ff' : '#ffd75e', 'center', UI_FONT, pl, 'bold');
+      this.bar(ctx, x2 + 30, y2 + 38, w2 - 60, 8, left / c.tmax, left < 1 ? '#ff9c6b' : '#6ee7ff');
+    }
+
     World.drawMinimap(ctx);
 
     // ----- nút pause & trợ giúp -----
