@@ -347,8 +347,8 @@ function updatePlayer(p, dt) {
   if (!p.alive) return;
   p.gcd = Math.max(0, p.gcd - dt);
   p.autoT -= dt; p.weaknessT = Math.max(0, p.weaknessT - dt);
-    p.spdBuffT = Math.max(0, p.spdBuffT - dt);
-    p.stunT = Math.max(0, (p.stunT || 0) - dt);
+  p.spdBuffT = Math.max(0, p.spdBuffT - dt);
+  p.stunT = Math.max(0, (p.stunT || 0) - dt);
   p.flashT = Math.max(0, p.flashT - dt); p.hitFxT = Math.max(0, p.hitFxT - dt); p.castFxT = Math.max(0, p.castFxT - dt);
   p.counterCd = Math.max(0, p.counterCd - dt);
   p.mp = Math.min(p.maxmp, p.mp + (p.stance && p.stance.name === 'UI' ? 16 : 7) * dt);
