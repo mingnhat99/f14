@@ -14,6 +14,7 @@
 - [x] **Rớt đồ iLvl** theo khu vực (15→60), tự trang bị, badge iLvl, hiển thị ở màn Victory
 - [x] **Tutorial 10 bước** gắn nhiệm vụ: card hướng dẫn, highlight nút, mũi tên chỉ mục tiêu, phần thưởng từng bước
 - [x] Nút Trợ giúp ❓ + bảng legend giải thích toàn bộ marker
+- [x] **Duty 2: The Navel (Titan)** — stagger gauge, counter, heart phase, gaol, earthen fury, AI thích ứng
 
 ## ⬜ Combat & Job
 - [ ] **Esuna** — cleanses debuff (cần thêm loại debuff có thể cleanse, ví dụ Burn từ Ifrit)
@@ -25,7 +26,6 @@
 - [ ] **Weaving oGCD hợp lệ** — phạt dùng 2 oGCD trong 1 GCD (clip)
 
 ## ⬜ Boss & Duty
-- [ ] **Duty 2: The Navel (Titan)** — knockback positioning, Phase gauge, Gaol giam người chơi
 - [ ] **Duty 3: Garuda** — gió đẩy, add phase xử lý theo thứ tự
 - [ ] **Mechanic nâng cao**: soak tower, gaze chain (nhìn theo thứ tự), orb nhặt theo màu, uptime checks
 - [ ] **Hard mode** cho duty cũ (thêm mechanic, tăng tốc độ)

@@ -27,6 +27,7 @@ python3 -m http.server 8765
 |---|---|---|
 | Di chuyển | joystick ảo (chạm nửa trái màn hình) | WASD / phím mũi tên |
 | Dùng skill | 5 nút vòng cung bên phải | phím `1`–`5` |
+| Counter | nút 🛡 (cung phải) | phím `6` |
 | Chọn mục tiêu | chạm vào quái | click chuột vào quái |
 | Thuốc | nút 🧪 | `Q` |
 | Limit Break | nút 🌈 (khi gauge đầy) | `R` |
@@ -38,6 +39,7 @@ python3 -m http.server 8765
 - **Duty Support**: 2 NPC đồng đội đi cùng — Thancred 🪓 (tank giữ aggro, có Raise khi chết) và Alisaie 🌸 (healer + nuke). Hệ thống **enmity** 3 bên: quái đánh người giữ thù hận cao nhất.
 - **Duty "The Bowl of Embers"**: quét 12 quái trash (Marmot/Goblin/Imp/Bomb — Bomb biết tự nổ, Goblin ném bom AoE), cổng mở, vào đấu trường đấu trùm **Ifrit**.
 - **Cơ chế Ifrit**: AoE cam đổ đầy (Eruption), vành khuyên Radiant Plume, lao Crimson Cyclone, Vulcan Burst hất tung, **Stack 💥 / Spread 🔵 / Tank Buster 🔻 / Gaze 👁️**, phase 60%/30% sinh **Infernal Nail** — không phá kịp Ifrit sẽ Enrage.
+- **Duty 2 "The Navel"**: sau khi hạ Ifrit, cổng đá mở → golem/sprite → boss **Titan** với **Stagger gauge** (làm đầy → choáng), **Counter** 🛡 đòn cast xanh (Lost Ark-style), **Heart of Stone** (12s phá hoặc wipe), **Granite Gaol** giam người, **Earthen Fury** 3 góc an toàn, AI thích ứng (phạt đứng sau lưng, nhắm người xa nhất, nổi giận khi bị né sạch). Fail mechanic lớn = WIPE, thử lại từ cửa arena.
 - **Chiều sâu job**: Monk có **positional** (đánh sau lưng/hông mới bonus damage), Black Mage có **Astral Fire / Umbral Ice** (xoay vòng stack lửa/băng).
 - **Trang bị iLvl**: quái rớt vũ khí/giáp theo khu vực (i15→i60), tự trang bị nếu tốt hơn.
 - **Hướng dẫn người mới**: 10 bước tutorial gắn nhiệm vụ (di chuyển → target → skill → né AoE →... → hạ Ifrit) có highlight nút, mũi tên chỉ đường, phần thưởng từng bước. Nút **❓** mở bảng legend giải thích mọi marker.
@@ -51,6 +53,7 @@ Xem [TODO.md](TODO.md) để có danh sách cơ chế FFXIV chưa làm (Raise, L
 - `?job=blm` — vào thẳng màn chọn job với job đã chọn
 - `?boss=1` — bỏ qua trash, mở thẳng cổng boss
 - `?demo=1` — bot tự chơi (tự né AoE, tự bấm skill) — tiện quay video demo
+- `?titan=1` — bỏ qua Ifrit + trash, vào thẳng Titan
 
 ## Cấu trúc code
 

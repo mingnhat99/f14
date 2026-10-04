@@ -244,6 +244,10 @@ function demoBot() {
     let a = ang(x, y, p.x, p.y);
     if (danger.shape === 'annulus') a += Math.PI; // ôm sát boss
     if (danger.shape === 'rect') a = danger.ang + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+    if (danger.shape === 'sector' && danger.safeAng !== undefined) {
+      const A = MAP.titanArena;
+      a = ang(p.x, p.y, A.x + Math.cos(danger.safeAng) * 200, A.y + Math.sin(danger.safeAng) * 200);
+    }
     G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 1 };
     return;
   }
@@ -273,9 +277,9 @@ function demoBot() {
       if (push) { const n = Math.hypot(ax, ay) || 1; G.demoMove = { x: ax / n, y: ay / n, mag: 1 }; return; }
     }
   }
-  const foes = G.enemies.filter(e => e.alive && !e.def.nail);
-  const nails = G.enemies.filter(e => e.alive && e.def.nail);
-  let tgt = nails[0] || foes.reduce((b, e) => !b || dist(p.x, p.y, e.x, e.y) < dist(p.x, p.y, b.x, b.y) ? e : b, null);
+  const mech = G.enemies.filter(e => e.alive && (e.def.nail || e.def.heart || e.def.gaol));
+  const foes = G.enemies.filter(e => e.alive && !e.def.nail && !e.def.heart && !e.def.gaol);
+  let tgt = mech[0] || foes.reduce((b, e) => !b || dist(p.x, p.y, e.x, e.y) < dist(p.x, p.y, b.x, b.y) ? e : b, null);
   if (!tgt) { // đi về phía đấu trường
     const a = ang(p.x, p.y, MAP.arena.x, MAP.arena.y);
     G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 1 };
@@ -296,6 +300,15 @@ function demoBot() {
     for (let i = 0; i < p.skills.length; i++) {
       if (tryUseSkill(p, i)) break;
     }
+  }
+  // counter khi Titan cast đòn xanh (đợi nửa cast cho tự nhiên)
+  const tb = G.boss;
+  if (tb && tb.def.titan && tb.engaged && tb.cast && tb.cast.counterable && tb.cast.t > tb.cast.tmax * 0.45) {
+    const d = dist(p.x, p.y, tb.x, tb.y);
+    if (d > 220 + tb.r) {
+      const a = ang(p.x, p.y, tb.x, tb.y);
+      G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 1 };
+    } else tryCounter(p);
   }
   if (p.hp < p.maxhp * 0.42) tryPotion(p);
   if (p.lb >= 100) tryLB(p);
