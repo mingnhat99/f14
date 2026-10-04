@@ -404,6 +404,7 @@ function spawnEnemy(typeId, x, y, opts = {}) {
     // boss
     engaged: false, abilityCd: 2.5, rotIdx: 0, atkBuff: 1,
     phase60: false, phase30: false, dash: null, clawCd: 1.5,
+    phaseIdx: 0, vulnT: 0, stagger: 0, staggeredT: 0, shielded: false, rageNext: false, atkBuffT: 0,
     sd: false, fuse: opts.fuse || 0,
   };
   G.enemies.push(e);
@@ -1272,6 +1273,40 @@ function drawPickups(ctx) {
 }
 
 // ---------- TITAN (BOSS 2) ----------
+const TITAN_PHASES = [
+  {
+    id: 'p1', name: 'GIAI ĐOẠN 1 — ĐẤT RUNG', gate: 0.70, tempo: 1.0,
+    actions: ['landslide', 'geocrush', 'tumult', 'landslide', 'geocrush', 'tumult'],
+  },
+];
+
+function castTitanAbility(e, id) {
+  const tempo = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].tempo;
+  const base = { landslide: 2.6, geocrush: 2.8, tumult: 2.2 }[id] || 2.6;
+  const tmax = base * tempo * (e.rageNext ? 0.8 : 1);
+  if (e.rageNext) {
+    G.toasts.push({ txt: '🗿 Titan NỔI GIẬN — ra đòn nhanh hơn!', t: 0, tmax: 1.6, color: '#ff9c6b' });
+    e.rageNext = false;
+  }
+  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
+  Snd.sfx('cast');
+  if (id === 'landslide') {
+    // AI thích ứng: nhắm người ĐỨNG XA boss nhất
+    let far = null, fd = -1;
+    for (const m of partyMembers()) { if (!m.alive) continue; const d = dist(e.x, e.y, m.x, m.y); if (d > fd) { fd = d; far = m; } }
+    const a = far ? ang(e.x, e.y, far.x, far.y) : rand(TAU);
+    const len = 900, cx = e.x + Math.cos(a) * len / 2, cy = e.y + Math.sin(a) * len / 2;
+    addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 130, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Landslide' });
+  } else if (id === 'geocrush') {
+    addTelegraph({ owner: e, shape: 'circle', follow: e, r: 230, tmax, dmg: 260 * e.atkBuff, knockback: 520, label: 'Geocrush' });
+  } else if (id === 'tumult') {
+    e.cast.onDone = (self) => {
+      for (const m of partyMembers()) if (m.alive) hitMember(m, 160 * self.atkBuff, 'Tumult');
+      G.cam.shake = 8; Snd.sfx('boom');
+    };
+  }
+}
+
 function updateTitan(e, dt) {
   const p = G.player;
   if (!e.engaged) {
@@ -1280,6 +1315,22 @@ function updateTitan(e, dt) {
     return;
   }
   e.flashT = Math.max(0, e.flashT - dt);
+  e.vulnT = Math.max(0, e.vulnT - dt);
+  e.atkBuffT = Math.max(0, e.atkBuffT - dt);
+  if (e.atkBuffT <= 0 && !e.enraged && e.atkBuff > 1) e.atkBuff = Math.max(1, e.atkBuff - dt * 0.25);
+  if ((e.staggeredT || 0) <= 0) e.stagger = Math.max(0, (e.stagger || 0) - 5 * dt); // decay
+  if (e.stunT > 0) return; // flinch — updateEnemies đã trừ stunT
+  if ((e.staggeredT || 0) > 0) { e.staggeredT -= dt; return; }
+  if (e.shielded) { // trái tim đá (task 6): đứng im giữa sân
+    if (Math.random() < 0.3) addPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r / 2, 0), 0, rand(-80, -30), '#c9b896', rand(3, 6), 0.8);
+    return;
+  }
+  if (e.cast) {
+    e.cast.t += dt;
+    if (e.cast.t >= e.cast.tmax) { const c = e.cast; e.cast = null; if (c.onDone) c.onDone(e); }
+    return;
+  }
+  // vuốt tay (đòn thường)
   e.clawCd -= dt;
   const clawTgt = enmityTarget(e);
   if (e.clawCd <= 0 && clawTgt.alive && dist(e.x, e.y, clawTgt.x, clawTgt.y) < e.def.atkRange) {
@@ -1288,11 +1339,34 @@ function updateTitan(e, dt) {
     hitMember(clawTgt, e.def.dmg * 1.15 * e.atkBuff);
     addSlash(clawTgt.x, clawTgt.y, ang(e.x, e.y, clawTgt.x, clawTgt.y), '#e0c9a0');
   }
-  const d = dist(e.x, e.y, clawTgt.x, clawTgt.y);
-  if (d > 170) {
-    const a = ang(e.x, e.y, clawTgt.x, clawTgt.y);
-    e.x += Math.cos(a) * e.def.spd * dt;
-    e.y += Math.sin(a) * e.def.spd * dt;
-    e.face = a;
+  // gate phase theo %HP
+  const ph = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)];
+  if (e.phaseIdx < TITAN_PHASES.length - 1 && e.hp < e.maxhp * ph.gate && e.heartDone) {
+    e.phaseIdx++;
+    e.rotIdx = 0;
+    e.cast = null;
+    cancelOwnerTelegraphs(e);
+    const np = TITAN_PHASES[e.phaseIdx];
+    G.banner = { txt: `🗿 ${np.name}`, sub: 'Titan đổi chiến thuật!', t: 0, tmax: 2.4 };
+    Snd.sfx('rumble'); G.cam.shake = 14;
   }
+  // rotation kỹ năng
+  e.abilityCd -= dt;
+  if (e.abilityCd <= 0 && p.alive) {
+    const list = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].actions;
+    castTitanAbility(e, list[e.rotIdx % list.length]);
+    e.rotIdx++;
+    e.abilityCd = 4.2 * ph.tempo;
+  } else if (clawTgt.alive) {
+    const d = dist(e.x, e.y, clawTgt.x, clawTgt.y);
+    if (d > 170) {
+      const a = ang(e.x, e.y, clawTgt.x, clawTgt.y);
+      e.x += Math.cos(a) * e.def.spd * dt;
+      e.y += Math.sin(a) * e.def.spd * dt;
+      e.face = a;
+    }
+  }
+}
+function cancelOwnerTelegraphs(owner) {
+  G.telegraphs = G.telegraphs.filter(t => t.owner !== owner);
 }
