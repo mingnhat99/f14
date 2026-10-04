@@ -122,8 +122,11 @@ function bossDefeated() {
   cancelOwnerTelegraphs(G.boss);
   G.cam.shake = 22;
   Snd.sfx('bigboom');
-  G.flash = { color: '#fff0d0', t: 0.5, tmax: 0.5 };
-  for (let i = 0; i < 80; i++) addPart(G.boss.x + rand(-60, 60), G.boss.y + rand(-50, 30), rand(-320, 320), rand(-420, -60), choice(['#ff7a3d', '#ffd75e', '#fff', '#c9402a']), rand(3, 8), 1.4);
+  const isTitan = G.boss.def.titan;
+  G.flash = { color: isTitan ? '#e8dcc0' : '#fff0d0', t: 0.5, tmax: 0.5 };
+  const cols = isTitan ? ['#c9b896', '#8a7458', '#fff', '#d9c48f'] : ['#ff7a3d', '#ffd75e', '#fff', '#c9402a'];
+  for (let i = 0; i < 80; i++) addPart(G.boss.x + rand(-60, 60), G.boss.y + rand(-50, 30), rand(-320, 320), rand(-420, -60), choice(cols), rand(3, 8), 1.4);
+  if (isTitan) { rockBurst(G.boss.x, G.boss.y, 40, 380); } // Titan sụp đổ trong bụi đá
 }
 function respawnPlayer() {
   const p = G.player;

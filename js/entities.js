@@ -472,10 +472,16 @@ function killEnemy(e) {
     G.boss.shielded = false;
     titanStaggered(G.boss, 6);
     G.toasts.push({ txt: '💫 Trái tim vỡ — Titan choáng 6s, DỒN DAMAGE!', t: 0, tmax: 2.4, color: '#ffe066' });
+    rockBurst(e.x, e.y, 18, 280);
+    G.rings.push({ x: e.x, y: e.y, r0: 20, r1: 260, t: 0, tmax: 0.5, color: '#c8b8ff', w: 7 });
+    G.cam.shake = Math.max(G.cam.shake, 10);
   }
   if (e.def.gaol && e.member) {
     e.member.gaoled = null;
     addText('TỰ DO!', e.x, e.y - 40, '#7de08a', 18, true);
+    rockBurst(e.x, e.y, 14, 240); // cũi vỡ tan
+    G.rings.push({ x: e.x, y: e.y, r0: 16, r1: 120, t: 0, tmax: 0.4, color: '#d9c48f', w: 6 });
+    G.cam.shake = Math.max(G.cam.shake, 6);
   }
 }
 
@@ -694,6 +700,11 @@ function engageBoss(e) {
   const gate = G.gates.find(g => g.id === (e.def.titan ? 'titan' : 'boss'));
   if (gate) { gate.closed = true; gate.anim = 0; }
   G.banner = { txt: '⚔ ENGAGE! ⚔', sub: `${e.def.name} — ${e.def.titan ? 'Primal của Đất' : 'Primal của Lửa'}`, t: 0, tmax: 2.4 };
+  if (e.def.titan) { // Titan gầm tỉnh giấc
+    rockBurst(e.x, e.y, 18, 260);
+    G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 460, t: 0, tmax: 0.7, color: '#d9c48f', w: 9 });
+    G.cam.shake = 12;
+  }
   G.toasts.push(e.def.titan
     ? { txt: 'Đòn có viền XANH → bấm 🛡 COUNTER (phím 6) để chặn!', t: 0, tmax: 3, color: '#9fe8ff' }
     : { txt: 'Nếu Infernal Nail xuất hiện → PHÁ HỦY NGAY!', t: 0, tmax: 3, color: '#ff9c6b' });
@@ -977,6 +988,10 @@ function updateMarkers(dt) {
       const t = m.followMember;
       G.rings.push({ x: t.x, y: t.y, r0: 30, r1: 130, t: 0, tmax: 0.35, color: '#c86af0', w: 7 });
       if (t.alive) hitMember(t, m.dmg || 620, m.label || 'Infernal Edge (Tank Buster)');
+      if (m.owner && m.owner.def && m.owner.def.titan) { // Mountain Buster: đòn đập đá
+        rockBurst(t.x, t.y, 12, 240);
+        G.cam.shake = Math.max(G.cam.shake, 10);
+      }
       G.cam.shake = Math.max(G.cam.shake, 8);
       Snd.sfx('bigboom');
     } else if (m.type === 'gaze') {
@@ -1086,21 +1101,40 @@ function updateTelegraphs(dt) {
     if (tg.t >= tg.tmax) {
       tg.done = true;
       const x = tg.follow ? tg.follow.x : tg.x, y = tg.follow ? tg.follow.y : tg.y;
-      // hiệu ứng nổ
+      // hiệu ứng nổ (resolveFx 'stone' = palette đá của Titan)
+      const stone = tg.resolveFx === 'stone';
+      const fx1 = stone ? '#c9b896' : '#ff7a3d', fx2 = stone ? '#8a7458' : '#ffd75e';
       if (tg.shape === 'circle') {
-        G.rings.push({ x, y, r0: tg.r * 0.4, r1: tg.r + 26, t: 0, tmax: 0.32, color: '#ff9c2b', w: 6 });
-        for (let i = 0; i < 16; i++) addPart(x + rand(-tg.r / 2, tg.r / 2), y + rand(-tg.r / 3, tg.r / 3), rand(-120, 120), rand(-220, -60), choice(['#ff7a3d', '#ffd75e']), rand(3, 6), 0.6);
-        Snd.sfx('boom'); G.cam.shake = Math.max(G.cam.shake, 5);
+        G.rings.push({ x, y, r0: tg.r * 0.4, r1: tg.r + 26, t: 0, tmax: 0.32, color: stone ? '#d9c48f' : '#ff9c2b', w: stone ? 8 : 6 });
+        for (let i = 0; i < 16; i++) addPart(x + rand(-tg.r / 2, tg.r / 2), y + rand(-tg.r / 3, tg.r / 3), rand(-120, 120), rand(-220, -60), choice([fx1, fx2]), rand(3, 6), 0.6);
+        Snd.sfx(stone ? 'rumble' : 'boom'); G.cam.shake = Math.max(G.cam.shake, stone ? 8 : 5);
       } else if (tg.shape === 'annulus') {
         for (let i = 0; i < 22; i++) {
           const a = rand(TAU), rr = rand(tg.r1, tg.r2);
-          addPart(x + Math.cos(a) * rr, y + Math.sin(a) * rr, rand(-60, 60), rand(-200, -80), choice(['#ff7a3d', '#ffd75e']), rand(3, 6), 0.6);
+          addPart(x + Math.cos(a) * rr, y + Math.sin(a) * rr, rand(-60, 60), rand(-200, -80), choice([fx1, fx2]), rand(3, 6), 0.6);
         }
         Snd.sfx('boom'); G.cam.shake = Math.max(G.cam.shake, 6);
       } else if (tg.shape === 'rect') {
         for (let i = 0; i < 18; i++) {
           const lx = rand(-tg.w / 2, tg.w / 2), ly = rand(-tg.h / 2, tg.h / 2);
-          addPart(x + Math.cos(tg.ang) * lx - Math.sin(tg.ang) * ly, y + Math.sin(tg.ang) * lx + Math.cos(tg.ang) * ly, rand(-60, 60), rand(-180, -60), '#ff7a3d', rand(3, 7), 0.6);
+          addPart(x + Math.cos(tg.ang) * lx - Math.sin(tg.ang) * ly, y + Math.sin(tg.ang) * lx + Math.cos(tg.ang) * ly, rand(-60, 60), rand(-180, -60), choice([fx1, fx2]), rand(3, 7), 0.6);
+        }
+        if (stone) { // điểm cuối đường trượt bốc bụi
+          const ex = x + Math.cos(tg.ang) * tg.w / 2, ey = y + Math.sin(tg.ang) * tg.w / 2;
+          G.rings.push({ x: ex, y: ey, r0: 20, r1: 110, t: 0, tmax: 0.35, color: '#d9c48f', w: 5 });
+          G.cam.shake = Math.max(G.cam.shake, 6); Snd.sfx('boom');
+        }
+      } else if (tg.shape === 'sector') {
+        // nổ sector (Fury / Seismic Slap)
+        G.rings.push({ x, y, r0: tg.r * 0.25, r1: tg.r * 0.85, t: 0, tmax: 0.45, color: stone ? '#d9c48f' : '#ff9c2b', w: 8 });
+        for (let i = 0; i < 22; i++) {
+          const pa = rand(TAU), prr = rand(tg.r * 0.2, tg.r * 0.8);
+          addPart(x + Math.cos(pa) * prr, y + Math.sin(pa) * prr * 0.62, rand(-80, 80), rand(-240, -80), choice([fx1, fx2, '#b8a878']), rand(3, 7), 0.7);
+        }
+        Snd.sfx('rumble'); G.cam.shake = Math.max(G.cam.shake, 10);
+        if (tg.label === 'Earthen Fury') {
+          G.flash = { color: '#ffd9a0', t: 0.22, tmax: 0.22 };
+          G.cam.shake = Math.max(G.cam.shake, 14);
         }
       }
       if (tg.dmg > 0 && p.alive && telegraphHitTest(tg, p.x, p.y)) {
@@ -1261,6 +1295,12 @@ function addBurst(x, y, color, n = 12, spd = 160) {
     addPart(x, y, Math.cos(a) * s, Math.sin(a) * s - 60, color, rand(2, 5), rand(0.4, 0.8));
   }
 }
+function rockBurst(x, y, n = 10, spd = 170) { // mảnh đá văng — palette đất của Titan
+  for (let i = 0; i < n; i++) {
+    const a = rand(TAU), s = rand(spd * 0.3, spd);
+    addPart(x, y, Math.cos(a) * s, Math.sin(a) * s - 90, choice(['#8a7458', '#c9b896', '#6e5c44', '#a08a6a']), rand(3, 7), rand(0.5, 0.9));
+  }
+}
 function addSlash(x, y, a, color) {
   G.slashes.push({ x, y, a, t: 0, tmax: 0.18, color });
 }
@@ -1383,21 +1423,28 @@ function castTitanAbility(e, id) {
     for (const m of partyMembers()) { if (!m.alive) continue; const d = dist(e.x, e.y, m.x, m.y); if (d > fd) { fd = d; far = m; } }
     const a = far ? ang(e.x, e.y, far.x, far.y) : rand(TAU);
     const len = 900, cx = e.x + Math.cos(a) * len / 2, cy = e.y + Math.sin(a) * len / 2;
-    addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 130, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Landslide' });
+    addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 130, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Landslide', resolveFx: 'stone' });
   } else if (id === 'geocrush') {
-    addTelegraph({ owner: e, shape: 'circle', follow: e, r: 230, tmax, dmg: 260 * e.atkBuff, knockback: 520, label: 'Geocrush' });
+    addTelegraph({ owner: e, shape: 'circle', follow: e, r: 230, tmax, dmg: 260 * e.atkBuff, knockback: 520, label: 'Geocrush', resolveFx: 'stone' });
   } else if (id === 'tumult') {
     // không thể né — báo trước rõ ràng để healer sẵn sàng
     G.toasts.push({ txt: '🌋 TUMULT — cả team trúng đòn, máu phải đầy!', t: 0, tmax: 1.8, color: '#ffd75e' });
     e.cast.onDone = (self) => {
       for (const m of partyMembers()) if (m.alive) hitMember(m, 160 * self.atkBuff, 'Tumult');
+      G.rings.push({ x: self.x, y: self.y, r0: 40, r1: 300, t: 0, tmax: 0.5, color: '#d9c48f', w: 7 });
+      G.rings.push({ x: self.x, y: self.y, r0: 40, r1: 520, t: 0, tmax: 0.7, color: '#b8a878', w: 5 });
+      rockBurst(self.x, self.y, 14, 220);
       G.cam.shake = 8; Snd.sfx('boom');
     };
   } else if (id === 'bury') {
     e.cast.counterable = true;
     e.cast.color = '#6ee7ff';
     e.cast.onDone = (self) => {
-      for (const m of partyMembers()) if (m.alive) hitMember(m, m.maxhp * 0.8, 'Bury — không COUNTER!');
+      for (const m of partyMembers()) if (m.alive) {
+        hitMember(m, m.maxhp * 0.8, 'Bury — không COUNTER!');
+        for (let i = 0; i < 6; i++) addPart(m.x + rand(-40, 40), m.y - 260 - rand(0, 60), rand(-15, 15), rand(280, 420), choice(['#8a7458', '#6e5c44']), rand(4, 7), 0.55); // đá rơi từ trời
+      }
+      G.flash = { color: '#e0c9a0', t: 0.3, tmax: 0.3 };
       G.cam.shake = 16; Snd.sfx('bigboom');
     };
   } else if (id === 'crossslide') {
@@ -1407,7 +1454,7 @@ function castTitanAbility(e, id) {
     for (const off of [Math.PI / 4, -Math.PI / 4]) {
       const a = base + off, len = 850;
       const cx = e.x + Math.cos(a) * len / 2, cy = e.y + Math.sin(a) * len / 2;
-      addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 120, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Cross Slide' });
+      addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 120, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Cross Slide', resolveFx: 'stone' });
     }
   } else if (id === 'bomb') {
     // AI thích ứng: nhắm CẶP đứng GẦN NHAU nhất — ép tản ra
@@ -1418,7 +1465,7 @@ function castTitanAbility(e, id) {
       const d = dist(alive[i].x, alive[i].y, alive[j].x, alive[j].y);
       if (d < bd) { bd = d; pair = [alive[i], alive[j]]; }
     }
-    for (const m of pair) if (m) addTelegraph({ owner: e, shape: 'circle', x: m.x, y: m.y, r: 85, tmax, dmg: 320 * e.atkBuff, label: 'Bomb' });
+    for (const m of pair) if (m) addTelegraph({ owner: e, shape: 'circle', x: m.x, y: m.y, r: 85, tmax, dmg: 320 * e.atkBuff, label: 'Bomb', resolveFx: 'stone' });
     G.toasts.push({ txt: '💣 SPREAD: 2 người đứng gần nhau bị ngắm — TẢN RA!', t: 0, tmax: 2, color: '#9fd0ff' });
   } else if (id === 'gaol') {
     // AI thích ứng: 60% giam player, 40% giam NPC gây damage thấp nhất (thường healer)
@@ -1456,6 +1503,13 @@ function castTitanAbility(e, id) {
         }
       }
       G.cam.shake = 14; Snd.sfx('rumble');
+      // cột đá trồi quanh viền arena
+      const A2 = MAP.titanArena;
+      G.flash = { color: '#e8dcc0', t: 0.22, tmax: 0.22 };
+      for (let i = 0; i < 10; i++) {
+        const ca = i / 10 * TAU;
+        rockBurst(A2.x + Math.cos(ca) * (A2.r - 70), A2.y + Math.sin(ca) * (A2.r - 70) * 0.62, 6, 260);
+      }
     };
   } else if (id === 'fury') {
     // 3 đợt quét arena — mỗi đợt 1 góc an toàn, trúng 1 đợt = wipe
@@ -1469,7 +1523,7 @@ function castTitanAbility(e, id) {
       addTelegraph({
         owner: e, shape: 'sector', x: MAP.titanArena.x, y: MAP.titanArena.y,
         r: MAP.titanArena.r + 60, ang: dangerAng, spread: 1.5 * Math.PI, safeAng: safe,
-        tmax: 2.2, dmg: 4000, label: 'Earthen Fury',
+        tmax: 2.2, dmg: 4000, label: 'Earthen Fury', resolveFx: 'stone',
         onResolve: () => { wave(n + 1); },
       });
     };
@@ -1489,6 +1543,31 @@ function titanStaggered(e, dur) {
   addText('STAGGER!', e.x, e.y - e.r - 30, '#ffe066', 22, true);
   Snd.sfx('confirm'); G.cam.shake = 10;
   for (let i = 0; i < 20; i++) addPart(e.x + rand(-e.r, e.r), e.y + rand(-40, 20), rand(-120, 120), rand(-240, -60), '#ffe066', rand(3, 6), 0.8);
+}
+
+// hiệu ứng WINDUP: bụi/đá bay trong lúc Titan thi triển từng đòn
+function castWindupFx(e) {
+  const id = e.cast.id;
+  if (id === 'landslide' || id === 'crossslide') {
+    for (const tg of G.telegraphs) {
+      if (tg.owner !== e || tg.shape !== 'rect') continue;
+      if (Math.random() < 0.5) {
+        const lx = rand(-tg.w / 2, tg.w / 2), ly = rand(-tg.h / 2, tg.h / 2);
+        addPart(tg.x + Math.cos(tg.ang) * lx - Math.sin(tg.ang) * ly, tg.y + Math.sin(tg.ang) * lx + Math.cos(tg.ang) * ly, rand(-30, 30), rand(-60, -20), '#b8a878', rand(2, 4), 0.5);
+      }
+    }
+  } else if (id === 'geocrush' || id === 'upheaval') {
+    if (Math.random() < 0.7) addPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r / 2, 0), 0, rand(-60, -20), choice(['#8a7458', '#c9b896']), rand(2, 5), 0.6);
+  } else if (id === 'fury' || id === 'tumult') {
+    if (Math.random() < 0.8) {
+      const A = MAP.titanArena, a = rand(TAU), rr = rand(A.r * 0.9);
+      addPart(A.x + Math.cos(a) * rr, A.y + Math.sin(a) * rr * 0.62, rand(-20, 20), rand(-70, -30), '#b8a878', rand(2, 5), 0.6);
+    }
+  } else if (id === 'gaol') {
+    if (Math.random() < 0.6) addPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r / 3, e.r / 3), 0, rand(-80, -30), '#9a8d78', rand(2, 5), 0.6);
+  } else if (id === 'mountainbuster') {
+    if (Math.random() < 0.5) addPart(e.x + rand(-e.r, e.r), e.y - e.r - rand(0, 40), 0, rand(-40, -10), '#e0b0ff', rand(2, 4), 0.5);
+  }
 }
 
 function updateTitan(e, dt) {
@@ -1543,7 +1622,7 @@ function updateTitan(e, dt) {
     e.greed[key] = inRear ? (e.greed[key] || 0) + dt : 0;
     if (e.greed[key] > 4 && !e.cast) {
       e.greed[key] = 0;
-      addTelegraph({ owner: e, shape: 'sector', x: e.x, y: e.y, r: 340, ang: rearBase, spread: 1.9, tmax: 1.6, dmg: 340 * e.atkBuff, label: 'Seismic Slap' });
+      addTelegraph({ owner: e, shape: 'sector', x: e.x, y: e.y, r: 340, ang: rearBase, spread: 1.9, tmax: 1.6, dmg: 340 * e.atkBuff, label: 'Seismic Slap', resolveFx: 'stone' });
       G.toasts.push({ txt: '🗿 Phạt đứng sau lưng — SEISMIC SLAP!', t: 0, tmax: 1.6, color: '#ff9c6b' });
       Snd.sfx('rumble');
     }
@@ -1556,10 +1635,7 @@ function updateTitan(e, dt) {
   }
   if (e.cast) {
     e.cast.t += dt;
-    if (e.cast.id === 'tumult' && Math.random() < 0.6) { // bụi đất rung khắp arena
-      const A2 = MAP.titanArena;
-      addPart(A2.x + rand(-A2.r, A2.r) * 0.8, A2.y + rand(-A2.r, A2.r) * 0.5, rand(-30, 30), rand(-70, -20), '#b8a878', rand(2, 5), 0.6);
-    }
+    castWindupFx(e);
     if (e.cast.t >= e.cast.tmax) { const c = e.cast; e.cast = null; if (c.onDone) c.onDone(e); }
     return;
   }
@@ -1591,6 +1667,8 @@ function updateTitan(e, dt) {
     const np = TITAN_PHASES[e.phaseIdx];
     G.banner = { txt: `🗿 ${np.name}`, sub: 'Titan đổi chiến thuật!', t: 0, tmax: 2.4 };
     Snd.sfx('rumble'); G.cam.shake = 14;
+    rockBurst(e.x, e.y, 16, 240); // gầm chuyển phase
+    G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 420, t: 0, tmax: 0.6, color: '#d9c48f', w: 8 });
   }
   const phNow = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)];
   // Tức giận: player né sạch 3 telegraph liên tiếp → đòn kế nhanh hơn 20%
@@ -1673,6 +1751,9 @@ function spawnGaol(member) {
   if (member === G.player) G.player.target = g;
   G.banner = { txt: '🪨 GRANITE GAOL 🪨', sub: member === G.player ? 'Đồng đội PHÁ CÙI giải cứu bạn — 10s!' : `${member.def.name} bị giam — PHÁ CÙI NGAY (10s)!`, t: 0, tmax: 2.2 };
   Snd.sfx('rumble');
+  G.cam.shake = Math.max(G.cam.shake, 8); // bụi đá dâng trào quanh nạn nhân
+  for (let i = 0; i < 16; i++) addPart(g.x + rand(-30, 30), g.y + rand(-10, 20), rand(-30, 30), rand(-160, -60), choice(['#9a8d78', '#c9b896']), rand(3, 6), 0.8);
+  G.rings.push({ x: g.x, y: g.y, r0: 14, r1: 90, t: 0, tmax: 0.4, color: '#d9c48f', w: 5 });
 }
 function updateGaol(e, dt) {
   e.fuse -= dt;
@@ -1681,6 +1762,7 @@ function updateGaol(e, dt) {
     e.alive = false;
     const m = e.member;
     if (m) { m.gaoled = null; if (m.alive) m === G.player ? playerDie() : damageAlly(m, 99999, 'Granite Gaol'); }
+    rockBurst(e.x, e.y, 16, 260);
     G.toasts.push({ txt: '🪨 Gaol không phá kịp — THÀNH VIÊN GỤC NGÃ!', t: 0, tmax: 2.4, color: '#ff5b5b' });
   }
 }
