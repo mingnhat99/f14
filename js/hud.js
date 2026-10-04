@@ -312,6 +312,19 @@ const HUD = {
       }
     }
 
+    // ----- overlay stagger check -----
+    if (G.staggerCheck) {
+      const sc = G.staggerCheck;
+      const w = 460, x = (G.VW - w) / 2, y = 128;
+      const k = clamp(sc.titan.stagger / 100, 0, 1);
+      const pulse = 0.7 + 0.3 * Math.sin(G.t * 9);
+      ctx.strokeStyle = `rgba(255,224,102,${pulse})`; ctx.lineWidth = 3;
+      this.panel(ctx, x, y, w, 52, 0.9);
+      ttext(ctx, '⚡ LÀM RUNG CHUYỂN TITAN!', x + w / 2, y + 14, 15, '#ffe066', 'center', UI_FONT, 1, 'bold');
+      this.bar(ctx, x + 16, y + 26, w - 90, 16, k, '#ffe066');
+      ttext(ctx, `${Math.ceil(sc.tmax - sc.t)}s`, x + w - 40, y + 34, 20, '#ff9c6b', 'center', UI_FONT, 1, 'bold');
+    }
+
     World.drawMinimap(ctx);
 
     // ----- nút pause & trợ giúp -----

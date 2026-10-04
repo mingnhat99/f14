@@ -14,6 +14,11 @@ const fmtTime = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 
 
 function pointInCircle(px, py, x, y, r) { return dist2(px, py, x, y) <= r * r; }
 function pointInAnnulus(px, py, x, y, r1, r2) { const d = dist(px, py, x, y); return d >= r1 && d <= r2; }
+function angDiff(a, b) { return Math.abs(((a - b + Math.PI * 3) % TAU) - Math.PI); }
+function pointInSector(px, py, x, y, r, ang, spread) {
+  if (dist2(px, py, x, y) > r * r) return false;
+  return angDiff(Math.atan2(py - y, px - x), ang) <= spread / 2;
+}
 function pointInRotRect(px, py, x, y, w, h, a) {
   const c = Math.cos(-a), s = Math.sin(-a), dx = px - x, dy = py - y;
   const lx = dx * c - dy * s, ly = dx * s + dy * c;

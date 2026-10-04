@@ -118,6 +118,10 @@ function playerDie() {
 
 function tryUseSkill(p, idx) {
   if (!p || !p.alive || G.state !== 'duty' || G.paused) return false;
+  if (p.gaoled && p.target !== p.gaoled) {
+    G.toasts.push({ txt: '🪨 Bạn đang bị giam — phá cũi để thoát!', t: 0, tmax: 1.2, color: '#e0c9a0' });
+    return false;
+  }
   const s = p.skills[idx];
   if (!s) return false;
   const def = s.def;
@@ -380,7 +384,7 @@ function updatePlayer(p, dt) {
     }
   } else {
     // di chuyển
-    const mv = (G.demo && G.demoMove) ? G.demoMove : Input.moveVec();
+    const mv = p.gaoled ? { x: 0, y: 0, mag: 0 } : ((G.demo && G.demoMove) ? G.demoMove : Input.moveVec());
     const spd = 175 * (p.spdBuffT > 0 ? 1.14 : 1);
     if (mv.mag > 0.02) {
       p.x += mv.x * spd * dt;
@@ -468,6 +472,10 @@ function killEnemy(e) {
     titanStaggered(G.boss, 6);
     G.toasts.push({ txt: '💫 Trái tim vỡ — Titan choáng 6s, DỒN DAMAGE!', t: 0, tmax: 2.4, color: '#ffe066' });
   }
+  if (e.def.gaol && e.member) {
+    e.member.gaoled = null;
+    addText('TỰ DO!', e.x, e.y - 40, '#7de08a', 18, true);
+  }
 }
 
 function updateEnemies(dt) {
@@ -490,6 +498,7 @@ function updateEnemies(dt) {
     }
     e.dots = e.dots.filter(d => d.t > 0);
 
+    if (e.def.gaol) { updateGaol(e, dt); continue; }
     if (e.def.heart) { updateHeart(e, dt); continue; }
     if (e.def.nail) { updateNail(e, dt); continue; }
     if (e.def.titan) { updateTitan(e, dt); continue; }
@@ -868,6 +877,7 @@ function updateAllies(dt) {
       }
       continue;
     }
+    if (a.gaoled) continue;
     if (a.stunT > 0) { a.stunT -= dt; continue; }
 
     // chọn mục tiêu: quái đang chiến đấu gần nhất
@@ -1065,6 +1075,7 @@ function telegraphHitTest(tg, px, py) {
   if (tg.shape === 'circle') return pointInCircle(px, py, x, y, tg.r);
   if (tg.shape === 'annulus') return pointInAnnulus(px, py, x, y, tg.r1, tg.r2);
   if (tg.shape === 'rect') return pointInRotRect(px, py, x, y, tg.w, tg.h, tg.ang);
+  if (tg.shape === 'sector') return pointInSector(px, py, x, y, tg.r, tg.ang, tg.spread);
   return false;
 }
 function updateTelegraphs(dt) {
@@ -1092,6 +1103,7 @@ function updateTelegraphs(dt) {
         }
       }
       if (tg.dmg > 0 && p.alive && telegraphHitTest(tg, p.x, p.y)) {
+        if (tg.owner && tg.owner.def && tg.owner.def.titan) tg.owner.dodgeStreak = 0;
         damagePlayer(tg.dmg, tg.label);
         if (tg.knockback) {
           const a = ang(x, y, p.x, p.y);
@@ -1100,6 +1112,7 @@ function updateTelegraphs(dt) {
         }
       } else if (tg.dmg > 0 && p.alive) {
         // né thành công — đếm cho hướng dẫn
+        if (tg.owner && tg.owner.def && tg.owner.def.titan) tg.owner.dodgeStreak = (tg.owner.dodgeStreak || 0) + 1;
         if (G.tut) G.tut.count.dodge = (G.tut.count.dodge || 0) + 1;
       }
       // telegraph cũng làm đồng đội bị thương nếu không né kịp
@@ -1155,6 +1168,20 @@ function drawTelegraphs(ctx) {
       ctx.beginPath();
       ctx.rect(-tg.w / 2, -tg.h / 2, tg.w * frac, tg.h);
       ctx.fillStyle = `rgba(255,130,30,${0.34 * pulse})`; ctx.fill();
+    } else if (tg.shape === 'sector') {
+      ctx.translate(x, y);
+      const a0 = tg.ang - tg.spread / 2;
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.ellipse(0, 0, tg.r, tg.r * 0.62, 0, a0, a0 + tg.spread * frac); ctx.closePath();
+      ctx.fillStyle = `rgba(255,130,30,${0.34 * pulse})`; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.ellipse(0, 0, tg.r, tg.r * 0.62, 0, a0, a0 + tg.spread); ctx.closePath();
+      ctx.fillStyle = 'rgba(255,120,20,0.14)'; ctx.fill(); ctx.stroke();
+      if (tg.safeAng !== undefined) {
+        ctx.strokeStyle = `rgba(110,255,170,${0.7 + 0.3 * Math.sin(G.t * 10)})`;
+        ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.ellipse(0, 0, tg.r * 0.9, tg.r * 0.9 * 0.62, 0, tg.safeAng - Math.PI / 4, tg.safeAng + Math.PI / 4); ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -1318,17 +1345,21 @@ const TITAN_PHASES = [
     id: 'p1', name: 'GIAI ĐOẠN 1 — ĐẤT RUNG', gate: 0.70, tempo: 1.0,
     actions: ['landslide', 'geocrush', 'bury', 'tumult', 'landslide', 'geocrush', 'bury'],
   },
+  {
+    id: 'p2', name: 'GIAI ĐOẠN 2 — CỖI ĐÁ', gate: 0.35, tempo: 0.9,
+    actions: ['crossslide', 'bomb', 'gaol', 'geocrush', 'bury', 'gaol', 'bomb', 'crossslide'],
+  },
 ];
 
 function castTitanAbility(e, id) {
   const tempo = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].tempo;
-  const base = { landslide: 2.6, geocrush: 2.8, tumult: 2.2, bury: 2.6 }[id] || 2.6;
+  const base = { landslide: 2.6, geocrush: 2.8, tumult: 2.2, bury: 2.6, crossslide: 2.4, bomb: 2.5, gaol: 2.6 }[id] || 2.6;
   const tmax = base * tempo * (e.rageNext ? 0.8 : 1);
   if (e.rageNext) {
     G.toasts.push({ txt: '🗿 Titan NỔI GIẬN — ra đòn nhanh hơn!', t: 0, tmax: 1.6, color: '#ff9c6b' });
     e.rageNext = false;
   }
-  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult', bury: 'Bury' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
+  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult', bury: 'Bury', crossslide: 'Cross Slide', bomb: 'Bombardment', gaol: 'Granite Gaol' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
   Snd.sfx('cast');
   if (id === 'landslide') {
     // AI thích ứng: nhắm người ĐỨNG XA boss nhất
@@ -1351,10 +1382,40 @@ function castTitanAbility(e, id) {
       for (const m of partyMembers()) if (m.alive) hitMember(m, m.maxhp * 0.8, 'Bury — không COUNTER!');
       G.cam.shake = 16; Snd.sfx('bigboom');
     };
+  } else if (id === 'crossslide') {
+    let far = null, fd = -1;
+    for (const m of partyMembers()) { if (!m.alive) continue; const d = dist(e.x, e.y, m.x, m.y); if (d > fd) { fd = d; far = m; } }
+    const base = far ? ang(e.x, e.y, far.x, far.y) : rand(TAU);
+    for (const off of [Math.PI / 4, -Math.PI / 4]) {
+      const a = base + off, len = 850;
+      const cx = e.x + Math.cos(a) * len / 2, cy = e.y + Math.sin(a) * len / 2;
+      addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 120, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Cross Slide' });
+    }
+  } else if (id === 'bomb') {
+    // AI thích ứng: nhắm CẶP đứng GẦN NHAU nhất — ép tản ra
+    const alive = partyMembers().filter(m => m.alive);
+    let pair = [alive[0], alive[1]] || [G.player, G.player];
+    let bd = Infinity;
+    for (let i = 0; i < alive.length; i++) for (let j = i + 1; j < alive.length; j++) {
+      const d = dist(alive[i].x, alive[i].y, alive[j].x, alive[j].y);
+      if (d < bd) { bd = d; pair = [alive[i], alive[j]]; }
+    }
+    for (const m of pair) if (m) addTelegraph({ owner: e, shape: 'circle', x: m.x, y: m.y, r: 85, tmax, dmg: 320 * e.atkBuff, label: 'Bomb' });
+    G.toasts.push({ txt: '💣 SPREAD: 2 người đứng gần nhau bị ngắm — TẢN RA!', t: 0, tmax: 2, color: '#9fd0ff' });
+  } else if (id === 'gaol') {
+    if (e.skipFirstGaol) { e.skipFirstGaol = false; e.cast = null; return; }
+    // AI thích ứng: 60% giam player, 40% giam NPC gây damage thấp nhất (thường healer)
+    const allies = G.allies.filter(a => a.alive);
+    let tgt = G.player;
+    if (Math.random() < 0.4 && allies.length) {
+      tgt = allies.reduce((b, a) => a.hp < b.hp ? a : b, allies[0]);
+    }
+    e.cast.onDone = (self) => { if (tgt.alive && !tgt.gaoled) spawnGaol(tgt); };
   }
 }
 
 function titanStaggered(e, dur) {
+  if (G.staggerCheck && G.staggerCheck.titan === e) G.staggerCheck.ok = true;
   e.stagger = 0;
   e.staggeredT = dur;
   e.vulnT = dur;
@@ -1418,13 +1479,61 @@ function updateTitan(e, dt) {
     G.banner = { txt: `🗿 ${np.name}`, sub: 'Titan đổi chiến thuật!', t: 0, tmax: 2.4 };
     Snd.sfx('rumble'); G.cam.shake = 14;
   }
+  const phNow = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)];
+  // Stagger Check đầu P2: 8s làm đầy gauge từ 0
+  if (e.checkDone !== true && e.phaseIdx === 1 && !G.enemies.some(x => x.alive && (x.def.heart || x.def.gaol))) {
+    if (G.staggerCheck === null || G.staggerCheck === undefined) {
+      e.checkDone = false;
+    }
+    if (e.checkDone === false) {
+      e.stagger = 0;
+      G.staggerCheck = { t: 0, tmax: 8, titan: e };
+      e.checkDone = 'running';
+      G.banner = { txt: '⚡ STAGGER CHECK!', sub: 'LÀM RUNG CHUYỂN Titan trong 8 giây!', t: 0, tmax: 2 };
+      Snd.sfx('warn');
+    }
+  }
+  if (G.staggerCheck && G.staggerCheck.titan === e) {
+    G.staggerCheck.t += dt;
+    if (e.stagger >= 100 || G.staggerCheck.ok) {
+      e.skipFirstGaol = true;
+      G.staggerCheck = null;
+      e.checkDone = true;
+      G.toasts.push({ txt: '✅ STAGGER CHECK THÀNH CÔNG — bỏ qua Gaol đầu tiên!', t: 0, tmax: 2.4, color: '#7de08a' });
+    } else if (G.staggerCheck.t >= G.staggerCheck.tmax) {
+      G.staggerCheck = null;
+      e.checkDone = true;
+      e.hp = Math.min(e.maxhp, e.hp + e.maxhp * 0.04);
+      for (const m of partyMembers()) if (m.alive) hitMember(m, 220, 'Stagger Check thất bại');
+      e.atkBuff = Math.max(e.atkBuff, 1.2); e.atkBuffT = 20;
+      G.toasts.push({ txt: '❌ Stagger Check thất bại — Titan hồi máu + mạnh lên!', t: 0, tmax: 2.4, color: '#ff5b5b' });
+    }
+  }
+  // Phạt greed lưng: đứng sau Titan >4s → Seismic Slap
+  if (!e.greed) e.greed = {};
+  const rearBase = (e.face || 0) + Math.PI;
+  for (const m of partyMembers()) {
+    if (!m.alive || m.gaoled) continue;
+    const key = m === G.player ? 'player' : m.def.id;
+    const d = dist(e.x, e.y, m.x, m.y);
+    const inRear = d < 380 && d > e.r && angDiff(ang(e.x, e.y, m.x, m.y), rearBase) < 0.9;
+    e.greed[key] = inRear ? (e.greed[key] || 0) + dt : 0;
+    if (e.greed[key] > 4 && !e.cast) {
+      e.greed[key] = 0;
+      addTelegraph({ owner: e, shape: 'sector', x: e.x, y: e.y, r: 340, ang: rearBase, spread: 1.9, tmax: 1.6, dmg: 340 * e.atkBuff, label: 'Seismic Slap' });
+      G.toasts.push({ txt: '🗿 Phạt đứng sau lưng — SEISMIC SLAP!', t: 0, tmax: 1.6, color: '#ff9c6b' });
+      Snd.sfx('rumble');
+    }
+  }
+  // Tức giận: player né sạch 3 telegraph liên tiếp → đòn kế nhanh hơn 20%
+  if ((e.dodgeStreak || 0) >= 3) { e.dodgeStreak = 0; e.rageNext = true; }
   // rotation kỹ năng
   e.abilityCd -= dt;
   if (e.abilityCd <= 0 && p.alive) {
-    const list = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].actions;
+    const list = phNow.actions;
     castTitanAbility(e, list[e.rotIdx % list.length]);
     e.rotIdx++;
-    e.abilityCd = 4.2 * ph.tempo;
+    e.abilityCd = 4.2 * phNow.tempo;
   } else if (clawTgt.alive) {
     const d = dist(e.x, e.y, clawTgt.x, clawTgt.y);
     if (d > 170) {
@@ -1454,5 +1563,26 @@ function updateHeart(e, dt) {
   if (e.fuse <= 0 && e.alive) {
     e.alive = false;
     wipeParty('Heart of Stone — không phá kịp!');
+  }
+}
+
+// ---------- GRANITE GAOL (P2) ----------
+function spawnGaol(member) {
+  const g = spawnEnemy('gaol', member.x, member.y, { fuse: 10 });
+  g.aggro = true;
+  g.member = member;
+  member.gaoled = g;
+  if (member === G.player) G.player.target = g;
+  G.banner = { txt: '🪨 GRANITE GAOL 🪨', sub: member === G.player ? 'Đồng đội PHÁ CÙI giải cứu bạn — 10s!' : `${member.def.name} bị giam — PHÁ CÙI NGAY (10s)!`, t: 0, tmax: 2.2 };
+  Snd.sfx('rumble');
+}
+function updateGaol(e, dt) {
+  e.fuse -= dt;
+  if (e.member) { e.member.x = e.x; e.member.y = e.y; }
+  if (e.fuse <= 0 && e.alive) {
+    e.alive = false;
+    const m = e.member;
+    if (m) { m.gaoled = null; if (m.alive) m === G.player ? playerDie() : damageAlly(m, 99999, 'Granite Gaol'); }
+    G.toasts.push({ txt: '🪨 Gaol không phá kịp — THÀNH VIÊN GỤC NGÃ!', t: 0, tmax: 2.4, color: '#ff5b5b' });
   }
 }

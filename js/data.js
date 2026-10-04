@@ -68,6 +68,7 @@ const ETYPES = {
   coeurl: { name: 'Coeurl', icon: '🐆', hp: 170, dmg: 17, xp: 50, spd: 200, aggro: 300, r: 20, atkRange: 74, atkCd: 1.7, color: '#c8b45c' },
   nail:   { name: 'Infernal Nail', icon: '', hp: 430, dmg: 0, xp: 90, spd: 0, aggro: 0, r: 16, stationary: true, nail: true, color: '#ff7a3d' },
   heart:  { name: 'Heart of Stone', icon: '💠', hp: 1400, dmg: 0, xp: 200, spd: 0, aggro: 0, r: 22, stationary: true, heart: true, noCount: true, color: '#b8a8d8' },
+  gaol:   { name: 'Granite Gaol', icon: '🪨', hp: 600, dmg: 0, xp: 100, spd: 0, aggro: 0, r: 26, stationary: true, gaol: true, noCount: true, color: '#9a8d78' },
   ifrit:  { name: 'Ifrit', icon: '', hp: 4300, dmg: 26, xp: 800, spd: 165, aggro: 2000, r: 58, isBoss: true, atkRange: 165, atkCd: 2.6, color: '#c9402a' },
   golem:  { name: 'Stone Golem', icon: '🪨', hp: 320, dmg: 24, xp: 90, spd: 105, aggro: 280, r: 24, atkRange: 78, atkCd: 2.4, color: '#8a7f70' },
   sprite: { name: 'Land Sprite', icon: '🌱', hp: 130, dmg: 16, xp: 70, spd: 150, aggro: 320, r: 16, ranged: true, castRange: 360, keepDist: 260, atkCd: 3.2, color: '#7fae6b' },

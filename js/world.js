@@ -195,7 +195,7 @@ const World = {
     // bóng + telegraph dưới chân vẽ ở tầng khác; đây là thân
     const drawables = [];
     for (const e of G.enemies) if (e.alive) {
-      drawables.push({ y: e.y, kind: e.def.titan ? 'titan' : e.def.isBoss ? 'boss' : e.def.heart ? 'heart' : e.def.nail ? 'nail' : 'enemy', o: e });
+      drawables.push({ y: e.y, kind: e.def.titan ? 'titan' : e.def.isBoss ? 'boss' : e.def.gaol ? 'gaol' : e.def.heart ? 'heart' : e.def.nail ? 'nail' : 'enemy', o: e });
     }
     for (const a of G.allies || []) {
       if (a.alive) drawables.push({ y: a.y, kind: 'ally', o: a });
@@ -207,6 +207,7 @@ const World = {
     for (const d of drawables) {
       if (d.kind === 'titan') this.drawTitan(ctx, d.o);
       if (d.kind === 'boss') this.drawIfrit(ctx, d.o);
+      else if (d.kind === 'gaol') this.drawGaol(ctx, d.o);
       else if (d.kind === 'heart') this.drawHeart(ctx, d.o);
       else if (d.kind === 'nail') this.drawNail(ctx, d.o);
       else if (d.kind === 'enemy') this.drawEnemy(ctx, d.o);
@@ -409,6 +410,32 @@ const World = {
     ctx.fillStyle = fk < 0.3 ? '#ff3b3b' : '#ffd75e';
     ctx.fillRect(e.x - w / 2 + 1, e.y - 51.5, (w - 2) * fk, 3);
     ttext(ctx, 'Heart of Stone', e.x, e.y - 62, 12, '#c8b8ff', 'center', UI_FONT, 1, 'bold');
+  },
+  drawGaol(ctx, e) {
+    const m = e.member;
+    // vẽ người bị giam bên trong
+    if (m && m.alive && m !== G.player) this.drawAlly(ctx, m);
+    const gl = 0.6 + 0.4 * Math.sin(G.t * 6);
+    ctx.save();
+    ctx.translate(e.x, e.y - 6);
+    ctx.strokeStyle = `rgba(190,170,130,${gl})`;
+    ctx.lineWidth = 7;
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * TAU + Math.PI / 6;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * e.r, Math.sin(a) * e.r * 0.7);
+      ctx.lineTo(Math.cos(a + Math.PI) * e.r, Math.sin(a + Math.PI) * e.r * 0.7);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r + 4, (e.r + 4) * 0.72, 0, 0, TAU);
+    ctx.strokeStyle = 'rgba(120,100,70,0.9)'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.restore();
+    const w = 56, hpk = clamp(e.hp / e.maxhp, 0, 1), fk = clamp(e.fuse / 10, 0, 1);
+    ctx.fillStyle = 'rgba(10,14,26,0.8)'; ctx.fillRect(e.x - w / 2, e.y - 48, w, 6);
+    ctx.fillStyle = '#d9c48f'; ctx.fillRect(e.x - w / 2 + 1, e.y - 47, (w - 2) * hpk, 4);
+    ctx.fillStyle = fk < 0.3 ? '#ff3b3b' : '#ffd75e';
+    ttext(ctx, `${Math.ceil(e.fuse)}s`, e.x, e.y - 60, 15, fk < 0.3 ? '#ff5b5b' : '#ffd75e', 'center', UI_FONT, 1, 'bold');
+    ttext(ctx, 'Granite Gaol', e.x, e.y - 74, 11, '#d9c48f', 'center', UI_FONT, 0.95);
   },
   drawIfrit(ctx, e) {
     const t = G.t;

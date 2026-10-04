@@ -11,6 +11,7 @@ const G = {
   fate: { active: false, cooldown: 25, got: 0, need: 5, timeLeft: 0 },
   boss: null, ifritDead: false, kills: 0, gil: 0, hintT: 0, dmgFlash: 0, flash: null,
   deathT: 0, victoryT: 0, demo: Q.get('demo') === '1', demoMove: null,
+  staggerCheck: null,
   delayed: [],
 };
 
@@ -67,6 +68,7 @@ function buildDuty() {
   G.banner = null; G.toasts = []; G.dmgFlash = 0; G.flash = null;
   G.deathT = 0; G.victoryT = 0; G.bossGateAnnounced = false;
   G.ifritDead = false;
+  G.staggerCheck = null;
   G.tut = { idx: 0, count: {}, used: new Set(), skip: Q.get('boss') === '1' || G.demo, progress: 0 };
   makeAllies();
   G.cam.x = clamp(G.player.x - G.VW / 2, 0, MAP.w - G.VW);
