@@ -9,7 +9,7 @@ const G = {
   cam: { x: 0, y: 0, shake: 0 },
   banner: null, toasts: [], dialogue: null, dlgIdx: 0,
   fate: { active: false, cooldown: 25, got: 0, need: 5, timeLeft: 0 },
-  boss: null, kills: 0, gil: 0, hintT: 0, dmgFlash: 0, flash: null,
+  boss: null, ifritDead: false, kills: 0, gil: 0, hintT: 0, dmgFlash: 0, flash: null,
   deathT: 0, victoryT: 0, demo: Q.get('demo') === '1', demoMove: null,
 };
 
@@ -64,6 +64,7 @@ function buildDuty() {
   G.kills = 0; G.gil = 0; G.paused = false; G.helpOpen = false;
   G.banner = null; G.toasts = []; G.dmgFlash = 0; G.flash = null;
   G.deathT = 0; G.victoryT = 0; G.bossGateAnnounced = false;
+  G.ifritDead = false;
   G.tut = { idx: 0, count: {}, used: new Set(), skip: Q.get('boss') === '1' || G.demo, progress: 0 };
   makeAllies();
   G.cam.x = clamp(G.player.x - G.VW / 2, 0, MAP.w - G.VW);
@@ -72,10 +73,22 @@ function buildDuty() {
   World.build();
   for (const pk of PACKS) for (const [type, x, y] of pk.mobs) spawnEnemy(type, x, y, { pack: pk.id, tier: ITEM_TIERS[pk.id] });
   G.boss = spawnEnemy('ifrit', MAP.arena.x, MAP.arena.y - 40, { tier: ITEM_TIERS.boss });
+  const titan = spawnEnemy('titan', MAP.titanArena.x, MAP.titanArena.y - 40, { tier: ITEM_TIERS.titan });
+  titan.arena = MAP.titanArena;
+  for (const pk of TITAN_PACKS) for (const [type, x, y] of pk.mobs) spawnEnemy(type, x, y, { pack: pk.id, tier: ITEM_TIERS[pk.id] });
+  if (Q.get('titan') === '1') { // debug: vào thẳng Titan
+    for (const en of G.enemies) if (!en.def.isBoss) en.alive = false;
+    G.kills = TRASH_TOTAL;
+    for (const g of G.gates) { g.closed = false; g.anim = 0; }
+    const ifrit = G.enemies.find(en => en.def.isBoss && !en.def.titan);
+    if (ifrit && ifrit.alive) killEnemy(ifrit); // chạy ifritDefeated → mở cổng titan
+    G.tut.skip = true;
+    G.player.x = MAP.titanGateX - 140; G.player.y = MAP.titanArena.y;
+  }
   if (Q.get('boss') === '1') { // debug: mở thẳng boss
     for (const e of G.enemies) if (!e.def.isBoss) e.alive = false;
     G.kills = TRASH_TOTAL;
-    for (const g of G.gates) { g.closed = false; g.anim = 0; }
+    for (const g of G.gates) if (g.id === 'start' || g.id === 'boss') { g.closed = false; g.anim = 0; }
     G.player.x = MAP.arena.x - 260; G.player.y = MAP.arena.y;
   }
 }
@@ -183,7 +196,7 @@ function updateTutorial() {
     case 'dodge': v = G.tut.count.dodge || 0; break;
     case 'potion': v = G.tut.count.potion || 0; break;
     case 'trash': v = Math.min(TRASH_TOTAL, G.kills); break;
-    case 'boss': v = (G.boss && !G.boss.alive) ? 1 : 0; break;
+    case 'boss': v = G.ifritDead ? 1 : 0; break;
   }
   G.tut.progress = v;
   if (v >= step.need) {

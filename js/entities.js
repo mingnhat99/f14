@@ -427,12 +427,12 @@ function killEnemy(e) {
   }
   // rớt trang bị theo iLvl khu vực
   if (e.tier && Math.random() < (e.def.nail ? 0 : 0.15)) dropGear(Math.random() < 0.5 ? 'weapon' : 'armor', e.tier);
-  if (e.def.isBoss) { dropGear('weapon', 60); dropGear('armor', 60); }
+  if (e.def.isBoss) { dropGear('weapon', e.def.dropTier || 60); dropGear('armor', e.def.dropTier || 60); }
   Snd.sfx('death');
   if (G.player.target === e) retarget(G.player);
   if (e.fate) G.fate.got++;
   if (!e.fate && !e.def.isBoss && !e.def.nail) G.kills++;
-  if (e.def.isBoss) bossDefeated();
+  if (e.def.isBoss) { if (e.def.titan) bossDefeated(); else ifritDefeated(); }
 }
 
 function updateEnemies(dt) {
@@ -456,6 +456,7 @@ function updateEnemies(dt) {
     e.dots = e.dots.filter(d => d.t > 0);
 
     if (e.def.nail) { updateNail(e, dt); continue; }
+    if (e.def.titan) { updateTitan(e, dt); continue; }
     if (e.def.isBoss) { updateIfrit(e, dt); continue; }
 
     // ---- quái thường ----
@@ -644,11 +645,22 @@ function updateIfrit(e, dt) {
 }
 function engageBoss(e) {
   e.engaged = true;
-  const gate = G.gates.find(g => g.id === 'boss');
+  const gate = G.gates.find(g => g.id === (e.def.titan ? 'titan' : 'boss'));
   if (gate) { gate.closed = true; gate.anim = 0; }
-  G.banner = { txt: '⚔ ENGAGE! ⚔', sub: 'Ifrit — Primal của Lửa', t: 0, tmax: 2.4 };
-  G.toasts.push({ txt: 'Nếu Infernal Nail xuất hiện → PHÁ HỦY NGAY!', t: 0, tmax: 3, color: '#ff9c6b' });
+  G.banner = { txt: '⚔ ENGAGE! ⚔', sub: `${e.def.name} — ${e.def.titan ? 'Primal của Đất' : 'Primal của Lửa'}`, t: 0, tmax: 2.4 };
+  G.toasts.push(e.def.titan
+    ? { txt: 'Đòn có viền XANH → bấm 🛡 COUNTER (phím 6) để chặn!', t: 0, tmax: 3, color: '#9fe8ff' }
+    : { txt: 'Nếu Infernal Nail xuất hiện → PHÁ HỦY NGAY!', t: 0, tmax: 3, color: '#ff9c6b' });
   Snd.sfx('warn');
+}
+function ifritDefeated() {
+  G.ifritDead = true;
+  const gt = G.gates.find(g => g.id === 'titan');
+  if (gt) gt.closed = false;
+  G.boss = G.enemies.find(x => x.alive && x.def.titan) || G.boss;
+  G.banner = { txt: '🔥 IFRIT GỤC NGÃ!', sub: 'Cổng đá phía đông đã mở — THE NAVEL chờ phía trước', t: 0, tmax: 3 };
+  G.toasts.push({ txt: '🗿 Qua đường hầm phía phải: duty mới THE NAVEL — Titan!', t: 0, tmax: 3.4, color: '#e0c9a0' });
+  Snd.sfx('gate');
 }
 function spawnNails(e) {
   for (let i = 0; i < 2; i++) {
@@ -1256,5 +1268,31 @@ function drawPickups(ctx) {
     ctx.beginPath(); ctx.ellipse(it.x, it.y + 10, 10, 4, 0, 0, TAU); ctx.fill();
     ctx.globalAlpha = 1;
     drawEmoji(ctx, it.type === 'gil' ? '💰' : '🧪', it.x, it.y - 6 + bob, 24, 1, it.type === 'gil' ? 'G' : 'P');
+  }
+}
+
+// ---------- TITAN (BOSS 2) ----------
+function updateTitan(e, dt) {
+  const p = G.player;
+  if (!e.engaged) {
+    const A = MAP.titanArena;
+    if (p.alive && G.ifritDead && p.x > MAP.titanGateX + 40 && dist(p.x, p.y, A.x, A.y) < A.r) engageBoss(e);
+    return;
+  }
+  e.flashT = Math.max(0, e.flashT - dt);
+  e.clawCd -= dt;
+  const clawTgt = enmityTarget(e);
+  if (e.clawCd <= 0 && clawTgt.alive && dist(e.x, e.y, clawTgt.x, clawTgt.y) < e.def.atkRange) {
+    e.clawCd = e.def.atkCd;
+    e.lungeT = 0.22;
+    hitMember(clawTgt, e.def.dmg * 1.15 * e.atkBuff);
+    addSlash(clawTgt.x, clawTgt.y, ang(e.x, e.y, clawTgt.x, clawTgt.y), '#e0c9a0');
+  }
+  const d = dist(e.x, e.y, clawTgt.x, clawTgt.y);
+  if (d > 170) {
+    const a = ang(e.x, e.y, clawTgt.x, clawTgt.y);
+    e.x += Math.cos(a) * e.def.spd * dt;
+    e.y += Math.sin(a) * e.def.spd * dt;
+    e.face = a;
   }
 }

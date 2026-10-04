@@ -195,7 +195,7 @@ const World = {
     // bóng + telegraph dưới chân vẽ ở tầng khác; đây là thân
     const drawables = [];
     for (const e of G.enemies) if (e.alive) {
-      drawables.push({ y: e.y, kind: e.def.isBoss ? 'boss' : e.def.nail ? 'nail' : 'enemy', o: e });
+      drawables.push({ y: e.y, kind: e.def.titan ? 'titan' : e.def.isBoss ? 'boss' : e.def.nail ? 'nail' : 'enemy', o: e });
     }
     for (const a of G.allies || []) {
       if (a.alive) drawables.push({ y: a.y, kind: 'ally', o: a });
@@ -205,6 +205,7 @@ const World = {
     if (p && p.alive) drawables.push({ y: p.y, kind: 'player', o: p });
     drawables.sort((a, b) => a.y - b.y);
     for (const d of drawables) {
+      if (d.kind === 'titan') this.drawTitan(ctx, d.o);
       if (d.kind === 'boss') this.drawIfrit(ctx, d.o);
       else if (d.kind === 'nail') this.drawNail(ctx, d.o);
       else if (d.kind === 'enemy') this.drawEnemy(ctx, d.o);
@@ -437,6 +438,47 @@ const World = {
     if (!e.engaged) {
       ttext(ctx, 'ZZZ...', e.x, e.y - e.r - 26, 15, 'rgba(200,200,220,0.75)');
       drawEmoji(ctx, '💤', e.x + 34, e.y - e.r - 26, 18, 0.8);
+    }
+  },
+  drawTitan(ctx, e) {
+    const t = G.t;
+    this.drawShadow(ctx, e.x, e.y, e.r * 1.1);
+    ctx.save();
+    ctx.translate(e.x, e.y - 10);
+    const g = ctx.createRadialGradient(-16, -20, 12, 0, 0, e.r + 18);
+    g.addColorStop(0, '#c9b896'); g.addColorStop(0.55, '#8a7458'); g.addColorStop(1, '#3d3226');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r, e.r * 0.95, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(20,16,10,0.8)'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.fillStyle = '#6e5c44';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * 20, -e.r * 0.55); ctx.lineTo(s * 58, -e.r * 0.95); ctx.lineTo(s * 40, -e.r * 0.3);
+      ctx.closePath(); ctx.fill();
+    }
+    const gl = 0.5 + 0.4 * Math.sin(t * 3);
+    ctx.strokeStyle = `rgba(255,180,90,${gl * 0.8})`; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-e.r * 0.5, e.r * 0.1); ctx.lineTo(-e.r * 0.1, -e.r * 0.2); ctx.lineTo(e.r * 0.3, e.r * 0.25); ctx.stroke();
+    ctx.fillStyle = `rgba(255,210,90,${gl})`;
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * 17, -e.r * 0.25, 7, 4.5, 0, 0, TAU); ctx.fill(); }
+    if (e.flashT > 0) {
+      ctx.globalAlpha = e.flashT * 5;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(0, 0, e.r, e.r * 0.95, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    if (!e.engaged) {
+      ttext(ctx, 'ZZZ...', e.x, e.y - e.r - 26, 15, 'rgba(200,200,220,0.75)');
+      drawEmoji(ctx, '💤', e.x + 38, e.y - e.r - 26, 18, 0.8);
+    }
+    if (e.cast) {
+      const w = 90, k = e.cast.t / e.cast.tmax;
+      ctx.fillStyle = 'rgba(10,14,26,0.85)';
+      ctx.fillRect(e.x - w / 2, e.y - e.r - 44, w, 9);
+      ctx.fillStyle = e.cast.color || '#ffd75e';
+      ctx.fillRect(e.x - w / 2 + 1, e.y - e.r - 43, (w - 2) * clamp(k, 0, 1), 7);
+      ttext(ctx, e.cast.name, e.x, e.y - e.r - 54, 13, e.cast.counterable ? '#9fe8ff' : '#ffd9a0', 'center', UI_FONT, 0.95, 'bold');
     }
   },
 
