@@ -11,7 +11,7 @@ function makePlayer(jobId) {
     gcd: 0, cast: null, combo: null, autoT: 0, spdBuffT: 0,
     buffs: [], skills: job.skills.map(id => ({ def: SKILLS[id], cd: 0 })),
     target: null, lb: 0, pot: 3, kb: { x: 0, y: 0, t: 0 }, dash: null,
-    flashT: 0, hitFxT: 0, castFxT: 0,
+    flashT: 0, hitFxT: 0, castFxT: 0, counterCd: 0,
     gear: { weaponIlvl: 5, weaponAtk: 2, armorIlvl: 5, armorHp: 20, armorDef: 1 }, stance: null,
   };
   recalcStats(p, true);
@@ -317,12 +317,34 @@ function tryLB(p) {
   return true;
 }
 
+function tryCounter(p) {
+  if (!p || !p.alive || G.state !== 'duty' || G.paused) return false;
+  const b = G.boss;
+  if (!(b && b.alive && b.engaged && b.def.titan)) { G.toasts.push({ txt: 'Không có gì để chặn!', t: 0, tmax: 1, color: '#8b93a8' }); return false; }
+  if (p.counterCd > 0) return false;
+  if (!(b.cast && b.cast.counterable)) { G.toasts.push({ txt: 'Chưa có đòn nào để chặn!', t: 0, tmax: 1, color: '#8b93a8' }); return false; }
+  if (dist(p.x, p.y, b.x, b.y) > 220 + b.r) { G.toasts.push({ txt: 'Xa quá — lại gần Titan!', t: 0, tmax: 1, color: '#ff9c6b' }); return false; }
+  // PARRY!
+  p.counterCd = 12;
+  b.cast = null;
+  cancelOwnerTelegraphs(b);
+  b.stunT = 1.5;
+  b.stagger = Math.min(100, (b.stagger || 0) + 30);
+  if (b.stagger >= 100) titanStaggered(b, 5);
+  addText('PARRY!', p.x, p.y - 60, '#9fe8ff', 24, true);
+  G.rings.push({ x: b.x, y: b.y, r0: 30, r1: 160, t: 0, tmax: 0.4, color: '#9fe8ff', w: 6 });
+  G.cam.shake = 6;
+  Snd.sfx('parry');
+  return true;
+}
+
 function updatePlayer(p, dt) {
   if (!p.alive) return;
   p.gcd = Math.max(0, p.gcd - dt);
   p.autoT -= dt; p.weaknessT = Math.max(0, p.weaknessT - dt);
   p.spdBuffT = Math.max(0, p.spdBuffT - dt);
   p.flashT = Math.max(0, p.flashT - dt); p.hitFxT = Math.max(0, p.hitFxT - dt); p.castFxT = Math.max(0, p.castFxT - dt);
+  p.counterCd = Math.max(0, p.counterCd - dt);
   p.mp = Math.min(p.maxmp, p.mp + (p.stance && p.stance.name === 'UI' ? 16 : 7) * dt);
   if (p.stance) { p.stance.t -= dt; if (p.stance.t <= 0) p.stance = null; }
   for (const s of p.skills) s.cd = Math.max(0, s.cd - dt);
@@ -1282,19 +1304,19 @@ function drawPickups(ctx) {
 const TITAN_PHASES = [
   {
     id: 'p1', name: 'GIAI ĐOẠN 1 — ĐẤT RUNG', gate: 0.70, tempo: 1.0,
-    actions: ['landslide', 'geocrush', 'tumult', 'landslide', 'geocrush', 'tumult'],
+    actions: ['landslide', 'geocrush', 'bury', 'tumult', 'landslide', 'geocrush', 'bury'],
   },
 ];
 
 function castTitanAbility(e, id) {
   const tempo = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].tempo;
-  const base = { landslide: 2.6, geocrush: 2.8, tumult: 2.2 }[id] || 2.6;
+  const base = { landslide: 2.6, geocrush: 2.8, tumult: 2.2, bury: 2.6 }[id] || 2.6;
   const tmax = base * tempo * (e.rageNext ? 0.8 : 1);
   if (e.rageNext) {
     G.toasts.push({ txt: '🗿 Titan NỔI GIẬN — ra đòn nhanh hơn!', t: 0, tmax: 1.6, color: '#ff9c6b' });
     e.rageNext = false;
   }
-  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
+  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult', bury: 'Bury' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
   Snd.sfx('cast');
   if (id === 'landslide') {
     // AI thích ứng: nhắm người ĐỨNG XA boss nhất
@@ -1309,6 +1331,13 @@ function castTitanAbility(e, id) {
     e.cast.onDone = (self) => {
       for (const m of partyMembers()) if (m.alive) hitMember(m, 160 * self.atkBuff, 'Tumult');
       G.cam.shake = 8; Snd.sfx('boom');
+    };
+  } else if (id === 'bury') {
+    e.cast.counterable = true;
+    e.cast.color = '#6ee7ff';
+    e.cast.onDone = (self) => {
+      for (const m of partyMembers()) if (m.alive) hitMember(m, m.maxhp * 0.8, 'Bury — không COUNTER!');
+      G.cam.shake = 16; Snd.sfx('bigboom');
     };
   }
 }

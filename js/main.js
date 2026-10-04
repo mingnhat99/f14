@@ -328,6 +328,7 @@ function handleTap(x, y) {
         else if (b.id === 'help') { G.helpOpen = true; Snd.sfx('select'); }
         else if (b.id === 'potion') tryPotion(G.player);
         else if (b.id === 'lb') tryLB(G.player);
+        else if (b.id === 'counter') tryCounter(G.player);
         else if (b.id === 'skill') tryUseSkill(G.player, b.idx);
         return;
       }
@@ -498,6 +499,7 @@ function loop(ts) {
       if (act.startsWith('skill:')) tryUseSkill(G.player, +act.slice(6));
       else if (act === 'potion') tryPotion(G.player);
       else if (act === 'lb') tryLB(G.player);
+      else if (act === 'counter') tryCounter(G.player);
     }
   }
   Input.keyActions.length = 0;

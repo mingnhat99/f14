@@ -468,6 +468,12 @@ const World = {
       ctx.beginPath(); ctx.ellipse(0, 0, e.r, e.r * 0.95, 0, 0, TAU); ctx.fill();
       ctx.globalAlpha = 1;
     }
+    if (e.cast && e.cast.counterable) {
+      const pl = 0.6 + 0.4 * Math.sin(G.t * 12);
+      ctx.strokeStyle = `rgba(180,240,255,${pl})`;
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.ellipse(0, 0, e.r + 16, (e.r + 16) * 0.95, 0, 0, TAU); ctx.stroke();
+    }
     ctx.restore();
     if (!e.engaged) {
       ttext(ctx, 'ZZZ...', e.x, e.y - e.r - 26, 15, 'rgba(200,200,220,0.75)');

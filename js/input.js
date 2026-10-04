@@ -61,7 +61,7 @@ const Input = {
       if (e.repeat) return;
       Snd.ensure();
       this.keys.add(e.code);
-      const map = { Digit1: 'skill:0', Digit2: 'skill:1', Digit3: 'skill:2', Digit4: 'skill:3', Digit5: 'skill:4', KeyQ: 'potion', KeyR: 'lb', KeyP: 'pause', Escape: 'pause', Enter: 'confirm', Space: 'confirm' };
+      const map = { Digit1: 'skill:0', Digit2: 'skill:1', Digit3: 'skill:2', Digit4: 'skill:3', Digit5: 'skill:4', Digit6: 'counter', KeyQ: 'potion', KeyR: 'lb', KeyP: 'pause', Escape: 'pause', Enter: 'confirm', Space: 'confirm' };
       if (map[e.code]) { e.preventDefault(); this.keyActions.push(map[e.code]); }
     });
     window.addEventListener('keyup', e => this.keys.delete(e.code));

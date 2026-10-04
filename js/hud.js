@@ -17,6 +17,7 @@ const HUD = {
     const T = (x, y, r) => ({ x: G.VW + (x - 1280) * s, y: G.VH + (y - 720) * s, r: r * s });
     this.skillBtns = [T(1152, 588, 50), T(1052, 648, 44), T(1052, 522, 44), T(952, 590, 42), T(958, 478, 40)];
     this.lbBtn = T(852, 548, 38);
+    this.counterBtn = T(866, 460, 38);
     this.potBtn = T(1206, 452, 30);
     this.pauseBtn = { x: G.VW - 36, y: 22, r: 20 };
     this.helpBtn = { x: G.VW - 84, y: 22, r: 20 };
@@ -36,6 +37,7 @@ const HUD = {
     if (circ(this.helpBtn)) return { id: 'help' };
     if (circ(this.potBtn)) return { id: 'potion' };
     if (circ(this.lbBtn)) return { id: 'lb' };
+    if (circ(this.counterBtn)) return { id: 'counter' };
     for (let i = 0; i < this.skillBtns.length; i++) if (circ(this.skillBtns[i])) return { id: 'skill', idx: i };
     return null;
   },
@@ -454,6 +456,24 @@ const HUD = {
     ctx.strokeStyle = p.pot > 0 ? '#7de08a' : 'rgba(110,120,150,0.35)'; ctx.lineWidth = 2.5; ctx.stroke();
     drawEmoji(ctx, '🧪', pb.x, pb.y, 26, 1, 'P');
     ttext(ctx, `x${p.pot}`, pb.x + 16, pb.y + 18, 13, '#7de08a', 'center', UI_FONT, 1, 'bold');
+    // Counter (hệ thống Titan)
+    const cb = this.counterBtn;
+    const cReady = p.counterCd <= 0;
+    ctx.save();
+    ctx.translate(cb.x, cb.y);
+    ctx.beginPath(); ctx.arc(0, 0, cb.r, 0, TAU);
+    const cg = ctx.createRadialGradient(0, -cb.r * 0.4, 4, 0, 0, cb.r);
+    cg.addColorStop(0, cReady ? '#1f4a5a' : '#1c2238'); cg.addColorStop(1, '#0c1122');
+    ctx.fillStyle = cg; ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = cReady ? '#6ee7ff' : 'rgba(110,120,150,0.35)'; ctx.stroke();
+    drawEmoji(ctx, '🛡️', 0, -2, cb.r * 0.85, 1, 'CTR');
+    if (p.counterCd > 0) {
+      cdPie(ctx, 0, 0, cb.r, p.counterCd / 12);
+      ttext(ctx, p.counterCd > 1 ? Math.ceil(p.counterCd) : p.counterCd.toFixed(1), 0, 0, 17, '#fff', 'center', UI_FONT, 1, 'bold');
+    }
+    ctx.restore();
+    ttext(ctx, '6', cb.x - cb.r + 13, cb.y - cb.r + 13, 12, 'rgba(232,236,245,0.65)', 'center');
   },
 
   // ================= HƯỚNG DẪN NGƯỜI MỚI =================
