@@ -586,12 +586,13 @@ const HUD = {
       ['🪨', 'Granite Gaol', 'Cũi đá giam 1 người — PHÁ CÙI trong 10s nếu không người đó chết'],
       ['🌋', 'Earthen Fury', '3 đợt quét sân — chỉ góc XANH an toàn, đứng sai 1 lần là wipe'],
       ['🌀', 'Seismic Dive', 'Titan CHÌM xuống rồi LAO TỚI chỗ bạn — vòng cam bám nửa cast rồi KHÓA lại: chạy ra ngay khi nó ngừng bám'],
+      ['🎯', 'Granite Rush (mở màn)', 'Đầu trận Titan khóa 1 người 🔴 rồi lướt qua 3 lần — ai trên đường lướt bị hất, tránh khỏi đường'],
     ];
     rows.forEach((r, i) => {
-      const ry = y + 66 + i * 30;
-      drawEmoji(ctx, r[0], x + 56, ry, 22);
-      ttext(ctx, r[1], x + 96, ry - 8, 15, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
-      ttext(ctx, r[2], x + 96, ry + 11, 13, '#c9d2e4', 'left');
+      const ry = y + 62 + i * 28;
+      drawEmoji(ctx, r[0], x + 56, ry, 20);
+      ttext(ctx, r[1], x + 96, ry - 7, 14, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
+      ttext(ctx, r[2], x + 96, ry + 10, 12, '#c9d2e4', 'left');
     });
     ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · 1-6/Q/R trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
     this.btn(ctx, x + w / 2 - 90, y + h - 44, 180, 32, 'Đã hiểu ✔', 'help-close');

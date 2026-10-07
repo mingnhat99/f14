@@ -700,7 +700,9 @@ function engageBoss(e) {
   const gate = G.gates.find(g => g.id === (e.def.titan ? 'titan' : 'boss'));
   if (gate) { gate.closed = true; gate.anim = 0; }
   G.banner = { txt: '⚔ ENGAGE! ⚔', sub: `${e.def.name} — ${e.def.titan ? 'Primal của Đất' : 'Primal của Lửa'}`, t: 0, tmax: 2.4 };
-  if (e.def.titan) { // Titan gầm tỉnh giấc
+  if (e.def.titan) { // Titan gầm tỉnh giấc + chuẩn bị đòn mở màn Granite Rush
+    e.openerPending = true;
+    e.openerDelay = 1.2;
     rockBurst(e.x, e.y, 18, 260);
     G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 460, t: 0, tmax: 0.7, color: '#d9c48f', w: 9 });
     G.cam.shake = 12;
@@ -1051,6 +1053,24 @@ function drawMarkers(ctx) {
       ctx.fill(); ctx.stroke();
       drawEmoji(ctx, '🔻', t.x, t.y - 52, 28);
       ttext(ctx, 'TANK BUSTER', t.x, t.y - 84, 13, '#e0b0ff', 'center', UI_FONT, pulse, 'bold');
+    } else if (m.type === 'rush') {
+      const t = m.followMember, b = G.boss;
+      if (t && t.alive && b && b.alive && b.rush) {
+        ctx.strokeStyle = `rgba(255,80,80,${pulse})`;
+        ctx.fillStyle = 'rgba(255,60,40,0.15)';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([12, 9]);
+        ctx.beginPath(); ctx.ellipse(t.x, t.y, 72, 48, 0, 0, TAU);
+        ctx.fill(); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = `rgba(255,130,100,${pulse})`;
+        ctx.beginPath();
+        ctx.moveTo(t.x - 26, t.y); ctx.lineTo(t.x + 26, t.y);
+        ctx.moveTo(t.x, t.y - 18); ctx.lineTo(t.x, t.y + 18);
+        ctx.stroke();
+        drawEmoji(ctx, '🎯', t.x, t.y - 58 - 6 * Math.sin(G.t * 5), 26);
+        ttext(ctx, 'MỤC TIÊU — TITAN SẮP LƯỚT QUA!', t.x, t.y - 94, 13, '#ff9c8b', 'center', UI_FONT, pulse, 'bold');
+      }
     } else if (m.type === 'gaze') {
       const b = G.boss;
       if (!b) continue;
@@ -1572,6 +1592,8 @@ function titanStaggered(e, dur) {
   e.staggeredT = dur;
   e.vulnT = dur;
   e.cast = null;
+  e.rush = null; // choáng cũng ngắt dở chuỗi Granite Rush
+  G.markers = G.markers.filter(m => m.type !== 'rush');
   cancelOwnerTelegraphs(e);
   G.markers = G.markers.filter(m => m.owner !== e); // marker gắn với cast (vd Mountain Buster) cũng bị ngắt
   G.banner = { txt: '💫 TITAN CHOÁNG!', sub: 'Dồn damage — nhận thêm 50% sát thương!', t: 0, tmax: 1.8 };
@@ -1666,6 +1688,13 @@ function updateTitan(e, dt) {
       Snd.sfx('rumble');
     }
   }
+  // GRANITE RUSH mở màn: Titan khóa 1 mục tiêu và lướt qua 3 lần (dmg cả đường lướt)
+  if (e.rush) { updateTitanRush(e, dt); return; }
+  if (e.openerPending) {
+    e.openerDelay -= dt;
+    if (e.openerDelay <= 0) { e.openerPending = false; startTitanRush(e); }
+    return;
+  }
   if (e.stunT > 0) return; // flinch — updateEnemies đã trừ stunT
   if ((e.staggeredT || 0) > 0) { e.staggeredT -= dt; return; }
   if (e.shielded) { // trái tim đá (task 6): đứng im giữa sân
@@ -1738,6 +1767,92 @@ function updateTitan(e, dt) {
     }
   }
 }
+
+// ---------- GRANITE RUSH (đòn mở màn Titan) ----------
+function startTitanRush(e) {
+  // chọn mục tiêu: 65% là người chơi, 35% NPC đồng đội ngẫu nhiên
+  const allies = G.allies.filter(a => a.alive);
+  const tgt = (Math.random() < 0.65 || !allies.length) ? G.player : choice(allies);
+  e.rush = { target: tgt, left: 3, phase: 'windup', t: 0 };
+  G.markers.push({ type: 'rush', followMember: tgt, t: 0, tmax: Infinity, owner: e });
+  G.toasts.push({ txt: '🎯 GRANITE RUSH — Titan khóa 1 MỤC TIÊU và lướt qua 3 lần: tránh đường lướt cam!', t: 0, tmax: 2.6, color: '#ff9c8b' });
+  rockBurst(e.x, e.y, 14, 240);
+  G.rings.push({ x: e.x, y: e.y, r0: 24, r1: 260, t: 0, tmax: 0.5, color: '#d9c48f', w: 7 });
+  Snd.sfx('rumble');
+  e.cast = { id: 'graniterush', name: 'Granite Rush', t: 0, tmax: 1.4, color: '#ffb27a' };
+}
+function titanRushAim(e) {
+  const R = e.rush, A = MAP.titanArena;
+  let tgt = R.target;
+  if (!tgt || !tgt.alive) { // mục tiêu gục giữa chừng → chuyển sang người sống kế tiếp
+    tgt = partyMembers().find(m => m.alive) || null;
+    R.target = tgt;
+    for (const m of G.markers) if (m.type === 'rush') m.followMember = tgt;
+    if (!tgt) { endTitanRush(e); return; }
+  }
+  e.cast = { id: 'graniterush', name: `Granite Rush (${4 - R.left}/3)`, t: 0, tmax: 0.9, color: '#ffb27a' };
+  // đường lướt: từ Titan xuyên qua mục tiêu (snapshot vị trí lúc ra đòn) tới sát viền arena
+  const a = ang(e.x, e.y, tgt.x, tgt.y);
+  const reach = dist(e.x, e.y, tgt.x, tgt.y) + 430;
+  let ex = e.x + Math.cos(a) * reach, ey = e.y + Math.sin(a) * reach;
+  const maxR = A.r - e.r - 24;
+  if (dist(ex, ey, A.x, A.y) > maxR) {
+    const ca = ang(A.x, A.y, ex, ey);
+    ex = A.x + Math.cos(ca) * maxR; ey = A.y + Math.sin(ca) * maxR;
+  }
+  // boss sát viền + mục tiêu bị hất ra ngoài → điểm cuối bị kẹp gần boss: lướt ngang arena qua tâm
+  if (dist(e.x, e.y, ex, ey) < 240) {
+    const dBC = dist(e.x, e.y, A.x, A.y) || 1;
+    ex = A.x + (A.x - e.x) / dBC * maxR;
+    ey = A.y + (A.y - e.y) / dBC * maxR;
+  }
+  const a2 = ang(e.x, e.y, ex, ey);
+  const len = dist(e.x, e.y, ex, ey) + e.r * 0.6;
+  e.face = a2;
+  addTelegraph({
+    owner: e, shape: 'rect', x: e.x + Math.cos(a2) * len / 2, y: e.y + Math.sin(a2) * len / 2,
+    w: len, h: 150, ang: a2, tmax: 0.9, dmg: 300 * e.atkBuff, knockback: 380,
+    label: 'Granite Rush', resolveFx: 'stone',
+    onResolve: () => titanRushDash(e, ex, ey),
+  });
+}
+function titanRushDash(e, ex, ey) {
+  const R = e.rush;
+  // vệt bụi đá trên toàn bộ đường lướt
+  for (let i = 0; i <= 14; i++) {
+    const k = i / 14;
+    addPart(lerp(e.x, ex, k) + rand(-18, 18), lerp(e.y, ey, k) + rand(-12, 12), rand(-70, 70), rand(-170, -50), choice(['#8a7458', '#b8a878', '#c9b896']), rand(3, 7), 0.6);
+  }
+  rockBurst(ex, ey, 14, 280);
+  G.rings.push({ x: ex, y: ey, r0: 26, r1: 230, t: 0, tmax: 0.4, color: '#d9c48f', w: 7 });
+  G.cam.shake = Math.max(G.cam.shake, 11);
+  Snd.sfx('rumble');
+  e.x = ex; e.y = ey;
+  R.left--;
+  R.phase = 'pause'; R.t = 0;
+}
+function endTitanRush(e) {
+  e.rush = null;
+  e.cast = null;
+  G.markers = G.markers.filter(m => m.type !== 'rush');
+  e.abilityCd = 3.2;
+}
+function updateTitanRush(e, dt) {
+  const R = e.rush;
+  R.t += dt;
+  if (e.cast && (R.phase === 'windup' || R.phase === 'aim')) e.cast.t = Math.min(e.cast.tmax, e.cast.t + dt);
+  if (Math.random() < 0.6) addPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r / 3, e.r / 3), 0, rand(-90, -30), choice(['#8a7458', '#b8a878']), rand(2, 5), 0.5);
+  if (R.phase === 'windup') {
+    if (R.t >= 1.4) { R.phase = 'aim'; R.t = 0; titanRushAim(e); }
+  } else if (R.phase === 'pause') {
+    if (R.target && R.target.alive) e.face = ang(e.x, e.y, R.target.x, R.target.y);
+    if (R.t >= 0.45) {
+      if (R.left > 0) { R.phase = 'aim'; R.t = 0; titanRushAim(e); }
+      else endTitanRush(e);
+    }
+  }
+  // phase 'aim': đứng chồn chân khai telegraph — onResolve của telegraph sẽ gọi titanRushDash
+}
 function cancelOwnerTelegraphs(owner) {
   G.telegraphs = G.telegraphs.filter(t => t.owner !== owner);
 }
@@ -1747,6 +1862,7 @@ function resetTitanFight() {
   e.hp = e.maxhp;
   e.engaged = false;
   e.cast = null; e.stunT = 0;
+  e.rush = null; e.openerPending = false; e.openerDelay = 1.2;
   e.stagger = 0; e.staggeredT = 0; e.vulnT = 0; e.shielded = false;
   e.phaseIdx = 0; e.rotIdx = 0; e.abilityCd = 2.5; e.clawCd = 1.5;
   e.heartDone = false; e.checkDone = false; e.skipFirstGaol = false;
