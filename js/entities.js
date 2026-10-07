@@ -1421,36 +1421,53 @@ function drawPickups(ctx) {
 const TITAN_PHASES = [
   {
     id: 'p1', name: 'GIAI ĐOẠN 1 — ĐẤT RUNG', gate: 0.70, tempo: 1.0,
-    actions: ['landslide', 'geocrush', 'seismicdive', 'bury', 'tumult', 'landslide', 'geocrush', 'bury'],
+    actions: ['landslide', 'geocrush', 'seismicdive', 'rockslide', 'tumult', 'geocrush', 'bury', 'landslide'],
   },
   {
     id: 'p2', name: 'GIAI ĐOẠN 2 — CỖI ĐÁ', gate: 0.35, tempo: 0.9,
-    actions: ['crossslide', 'bomb', 'gaol', 'seismicdive', 'geocrush', 'bury', 'gaol', 'bomb', 'crossslide'],
+    actions: ['crossslide', 'rockslide', 'bomb', 'seismicdive', 'geocrush', 'gaol', 'crossslide', 'tumult'],
   },
   {
     id: 'p3', name: 'GIAI ĐOẠN 3 — CƠN THỊNH NỘ', gate: 0, tempo: 0.75,
-    actions: ['fury', 'upheaval', 'seismicdive', 'mountainbuster', 'bury', 'fury', 'crossslide'],
+    actions: ['fury', 'upheaval', 'rockslide', 'mountainbuster', 'seismicdive', 'crossslide', 'geocrush', 'bury'],
   },
 ];
+
+// Titan lướt tức thời tới điểm (nx,ny): vệt bụi dọc đường + nổ đá điểm đến, kẹp trong arena
+function titanDashTo(e, nx, ny, big = false) {
+  const A = MAP.titanArena;
+  const maxR = A.r - e.r - 24;
+  if (dist(nx, ny, A.x, A.y) > maxR) { const ca = ang(A.x, A.y, nx, ny); nx = A.x + Math.cos(ca) * maxR; ny = A.y + Math.sin(ca) * maxR; }
+  for (let i = 0; i <= 10; i++) {
+    const k = i / 10;
+    addPart(lerp(e.x, nx, k) + rand(-14, 14), lerp(e.y, ny, k) + rand(-10, 10), rand(-40, 40), rand(-140, -40), choice(['#8a7458', '#b8a878', '#c9b896']), rand(3, 6), 0.55);
+  }
+  e.x = nx; e.y = ny;
+  rockBurst(nx, ny, big ? 22 : 14, big ? 320 : 260);
+  G.rings.push({ x: nx, y: ny, r0: 24, r1: big ? 300 : 220, t: 0, tmax: 0.4, color: '#d9c48f', w: 7 });
+  G.cam.shake = Math.max(G.cam.shake, big ? 12 : 10);
+  Snd.sfx('rumble');
+}
 
 function castTitanAbility(e, id) {
   if (id === 'gaol' && e.skipFirstGaol) { e.skipFirstGaol = false; return; }
   const tempo = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].tempo;
-  const base = { landslide: 2.6, geocrush: 2.8, tumult: 2.2, bury: 2.6, crossslide: 2.4, bomb: 2.5, gaol: 2.6, fury: 7.0, upheaval: 2.4, mountainbuster: 2.6, seismicdive: 2.0 }[id] || 2.6;
+  const base = { landslide: 2.0, geocrush: 2.2, tumult: 1.8, bury: 2.6, crossslide: 1.9, bomb: 2.0, gaol: 2.2, fury: 7.0, upheaval: 2.0, mountainbuster: 2.4, seismicdive: 1.7, rockslide: 1.6 }[id] || 2.6;
   const tmax = base * tempo * (e.rageNext ? 0.8 : 1);
   if (e.rageNext) {
     G.toasts.push({ txt: '🗿 Titan NỔI GIẬN — ra đòn nhanh hơn!', t: 0, tmax: 1.6, color: '#ff9c6b' });
     e.rageNext = false;
   }
-  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult', bury: 'Bury', crossslide: 'Cross Slide', bomb: 'Bombardment', gaol: 'Granite Gaol', fury: 'Earthen Fury', upheaval: 'Upheaval', mountainbuster: 'Mountain Buster', seismicdive: 'Seismic Dive' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
+  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult', bury: 'Bury', crossslide: 'Cross Slide', bomb: 'Bombardment', gaol: 'Granite Gaol', fury: 'Earthen Fury', upheaval: 'Upheaval', mountainbuster: 'Mountain Buster', seismicdive: 'Seismic Dive', rockslide: 'Rock Slide' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
   Snd.sfx('cast');
   if (id === 'landslide') {
-    // AI thích ứng: nhắm người ĐỨNG XA boss nhất
+    // AI thích ứng: nhắm người ĐỨNG XA boss nhất — hết cast Titan LAO THEO ĐƯỜNG đá
     let far = null, fd = -1;
     for (const m of partyMembers()) { if (!m.alive) continue; const d = dist(e.x, e.y, m.x, m.y); if (d > fd) { fd = d; far = m; } }
     const a = far ? ang(e.x, e.y, far.x, far.y) : rand(TAU);
     const len = 900, cx = e.x + Math.cos(a) * len / 2, cy = e.y + Math.sin(a) * len / 2;
-    addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 130, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Landslide', resolveFx: 'stone' });
+    addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 130, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Landslide', resolveFx: 'stone',
+      onResolve: () => titanDashTo(e, cx + Math.cos(a) * len / 2, cy + Math.sin(a) * len / 2) });
   } else if (id === 'geocrush') {
     addTelegraph({ owner: e, shape: 'circle', follow: e, r: 230, tmax, dmg: 260 * e.atkBuff, knockback: 520, label: 'Geocrush', resolveFx: 'stone' });
   } else if (id === 'seismicdive') {
@@ -1505,12 +1522,18 @@ function castTitanAbility(e, id) {
   } else if (id === 'crossslide') {
     let far = null, fd = -1;
     for (const m of partyMembers()) { if (!m.alive) continue; const d = dist(e.x, e.y, m.x, m.y); if (d > fd) { fd = d; far = m; } }
-    const base = far ? ang(e.x, e.y, far.x, far.y) : rand(TAU);
-    for (const off of [Math.PI / 4, -Math.PI / 4]) {
-      const a = base + off, len = 850;
+    const baseA = far ? ang(e.x, e.y, far.x, far.y) : rand(TAU);
+    // 2 đường chéo lệch pha 0.85s — Titan LAO theo từng đường, đường 2 ép đổi hướng gấp
+    [Math.PI / 4, -Math.PI / 4].forEach((off, idx) => {
+      const a = baseA + off, len = 850;
       const cx = e.x + Math.cos(a) * len / 2, cy = e.y + Math.sin(a) * len / 2;
-      addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 120, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Cross Slide', resolveFx: 'stone' });
-    }
+      const tg = addTelegraph({ owner: e, shape: 'rect', x: cx, y: cy, w: len, h: 120, ang: a, tmax, dmg: 300 * e.atkBuff, label: 'Cross Slide', resolveFx: 'stone' });
+      if (idx === 1) tg.t = -0.85; // đường 2 hiện sau
+      tg.onResolve = () => titanDashTo(e, cx + Math.cos(a) * len / 2, cy + Math.sin(a) * len / 2);
+    });
+  } else if (id === 'rockslide') {
+    // LƯỚT GIỮA TRẬN: khóa mục tiêu và lao qua 2 lần — tái dùng máy trạng thái Granite Rush
+    startTitanRush(e, 'Rock Slide', 2, 0.55);
   } else if (id === 'bomb') {
     // AI thích ứng: nhắm CẶP đứng GẦN NHAU nhất — ép tản ra
     const alive = partyMembers().filter(m => m.alive);
@@ -1707,14 +1730,18 @@ function updateTitan(e, dt) {
     if (e.cast.t >= e.cast.tmax) { const c = e.cast; e.cast = null; if (c.onDone) c.onDone(e); }
     return;
   }
-  // vuốt tay (đòn thường)
+  // đòn thường: 55% cào — 45% STOMP AoE quanh thân (ép không đứng ôm boss)
   e.clawCd -= dt;
   const clawTgt = enmityTarget(e);
   if (e.clawCd <= 0 && clawTgt.alive && dist(e.x, e.y, clawTgt.x, clawTgt.y) < e.def.atkRange) {
     e.clawCd = e.def.atkCd;
-    e.lungeT = 0.22;
-    hitMember(clawTgt, e.def.dmg * 1.15 * e.atkBuff);
-    addSlash(clawTgt.x, clawTgt.y, ang(e.x, e.y, clawTgt.x, clawTgt.y), '#e0c9a0');
+    if (Math.random() < 0.45) {
+      addTelegraph({ owner: e, shape: 'circle', follow: e, r: 185, tmax: 1.0, dmg: 240 * e.atkBuff, knockback: 320, label: 'Tectonic Stomp', resolveFx: 'stone' });
+    } else {
+      e.lungeT = 0.22;
+      hitMember(clawTgt, e.def.dmg * 1.15 * e.atkBuff);
+      addSlash(clawTgt.x, clawTgt.y, ang(e.x, e.y, clawTgt.x, clawTgt.y), '#e0c9a0');
+    }
   }
   // phase trái tim đá tại 70%
   if (!e.heartDone && e.hp < e.maxhp * 0.7) {
@@ -1756,30 +1783,30 @@ function updateTitan(e, dt) {
     const list = phNow.actions;
     castTitanAbility(e, list[e.rotIdx % list.length]);
     e.rotIdx++;
-    e.abilityCd = 4.2 * phNow.tempo;
+    e.abilityCd = 2.7 * phNow.tempo; // nhịp dồn: 2.7s P1 → 2.0s P3
   } else if (clawTgt.alive) {
     const d = dist(e.x, e.y, clawTgt.x, clawTgt.y);
     if (d > 170) {
       const a = ang(e.x, e.y, clawTgt.x, clawTgt.y);
-      e.x += Math.cos(a) * e.def.spd * dt;
-      e.y += Math.sin(a) * e.def.spd * dt;
+      e.x += Math.cos(a) * e.def.spd * 1.3 * dt;
+      e.y += Math.sin(a) * e.def.spd * 1.3 * dt;
       e.face = a;
     }
   }
 }
 
-// ---------- GRANITE RUSH (đòn mở màn Titan) ----------
-function startTitanRush(e) {
+// ---------- GRANITE RUSH / ROCK SLIDE (chuỗi lướt qua mục tiêu) ----------
+function startTitanRush(e, label = 'Granite Rush', total = 3, windup = 1.4) {
   // chọn mục tiêu: 65% là người chơi, 35% NPC đồng đội ngẫu nhiên
   const allies = G.allies.filter(a => a.alive);
   const tgt = (Math.random() < 0.65 || !allies.length) ? G.player : choice(allies);
-  e.rush = { target: tgt, left: 3, phase: 'windup', t: 0 };
+  e.rush = { target: tgt, left: total, total, phase: 'windup', t: 0, windup, label };
   G.markers.push({ type: 'rush', followMember: tgt, t: 0, tmax: Infinity, owner: e });
-  G.toasts.push({ txt: '🎯 GRANITE RUSH — Titan khóa 1 MỤC TIÊU và lướt qua 3 lần: tránh đường lướt cam!', t: 0, tmax: 2.6, color: '#ff9c8b' });
+  G.toasts.push({ txt: `🎯 ${label.toUpperCase()} — Titan khóa 1 MỤC TIÊU và lướt qua ${total} lần: tránh đường lướt cam!`, t: 0, tmax: 2.6, color: '#ff9c8b' });
   rockBurst(e.x, e.y, 14, 240);
   G.rings.push({ x: e.x, y: e.y, r0: 24, r1: 260, t: 0, tmax: 0.5, color: '#d9c48f', w: 7 });
   Snd.sfx('rumble');
-  e.cast = { id: 'graniterush', name: 'Granite Rush', t: 0, tmax: 1.4, color: '#ffb27a' };
+  e.cast = { id: 'rush', name: label, t: 0, tmax: windup, color: '#ffb27a' };
 }
 function titanRushAim(e) {
   const R = e.rush, A = MAP.titanArena;
@@ -1790,7 +1817,7 @@ function titanRushAim(e) {
     for (const m of G.markers) if (m.type === 'rush') m.followMember = tgt;
     if (!tgt) { endTitanRush(e); return; }
   }
-  e.cast = { id: 'graniterush', name: `Granite Rush (${4 - R.left}/3)`, t: 0, tmax: 0.9, color: '#ffb27a' };
+  e.cast = { id: 'rush', name: `${R.label} (${R.total - R.left + 1}/${R.total})`, t: 0, tmax: 0.9, color: '#ffb27a' };
   // đường lướt: từ Titan xuyên qua mục tiêu (snapshot vị trí lúc ra đòn) tới sát viền arena
   const a = ang(e.x, e.y, tgt.x, tgt.y);
   const reach = dist(e.x, e.y, tgt.x, tgt.y) + 430;
@@ -1812,7 +1839,7 @@ function titanRushAim(e) {
   addTelegraph({
     owner: e, shape: 'rect', x: e.x + Math.cos(a2) * len / 2, y: e.y + Math.sin(a2) * len / 2,
     w: len, h: 150, ang: a2, tmax: 0.9, dmg: 300 * e.atkBuff, knockback: 380,
-    label: 'Granite Rush', resolveFx: 'stone',
+    label: R.label, resolveFx: 'stone',
     onResolve: () => titanRushDash(e, ex, ey),
   });
 }
@@ -1835,7 +1862,7 @@ function endTitanRush(e) {
   e.rush = null;
   e.cast = null;
   G.markers = G.markers.filter(m => m.type !== 'rush');
-  e.abilityCd = 3.2;
+  e.abilityCd = 2.2; // xong chuỗi lướt → vào rotation tiếp nhanh
 }
 function updateTitanRush(e, dt) {
   const R = e.rush;
@@ -1843,7 +1870,7 @@ function updateTitanRush(e, dt) {
   if (e.cast && (R.phase === 'windup' || R.phase === 'aim')) e.cast.t = Math.min(e.cast.tmax, e.cast.t + dt);
   if (Math.random() < 0.6) addPart(e.x + rand(-e.r, e.r), e.y + rand(-e.r / 3, e.r / 3), 0, rand(-90, -30), choice(['#8a7458', '#b8a878']), rand(2, 5), 0.5);
   if (R.phase === 'windup') {
-    if (R.t >= 1.4) { R.phase = 'aim'; R.t = 0; titanRushAim(e); }
+    if (R.t >= R.windup) { R.phase = 'aim'; R.t = 0; titanRushAim(e); }
   } else if (R.phase === 'pause') {
     if (R.target && R.target.alive) e.face = ang(e.x, e.y, R.target.x, R.target.y);
     if (R.t >= 0.45) {
