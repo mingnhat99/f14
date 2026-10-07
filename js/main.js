@@ -507,8 +507,13 @@ function renderDutyWorld(ctx) {
     ctx.translate(rand(-sh, sh), rand(-sh, sh));
   }
   World.drawGround(ctx);
+  // drawGates/drawTelegraphs vẽ bằng tọa độ thế giới → phải bọc camera transform
+  // (drawGround/drawEntities/drawEmbers tự trừ camera bên trong, không được bọc 2 lần)
+  ctx.save();
+  ctx.translate(-G.cam.x, -G.cam.y);
   World.drawGates(ctx);
   drawTelegraphs(ctx);
+  ctx.restore();
   World.drawEntities(ctx);
   World.drawEmbers(ctx);
   if (sh > 0.3) ctx.restore();

@@ -72,7 +72,7 @@ const ETYPES = {
   ifrit:  { name: 'Ifrit', icon: '', hp: 4300, dmg: 26, xp: 800, spd: 165, aggro: 2000, r: 58, isBoss: true, atkRange: 165, atkCd: 2.6, color: '#c9402a' },
   golem:  { name: 'Stone Golem', icon: '🪨', hp: 320, dmg: 24, xp: 90, spd: 105, aggro: 280, r: 24, atkRange: 78, atkCd: 2.4, color: '#8a7f70' },
   sprite: { name: 'Land Sprite', icon: '🌱', hp: 130, dmg: 16, xp: 70, spd: 150, aggro: 320, r: 16, ranged: true, castRange: 360, keepDist: 260, atkCd: 3.2, color: '#7fae6b' },
-  titan:  { name: 'Titan', icon: '🗿', hp: 9000, dmg: 34, xp: 1600, spd: 150, aggro: 2200, r: 64, isBoss: true, titan: true, dropTier: 90, title: 'TITAN — PRIMAL CỦA ĐẤT', atkRange: 175, atkCd: 2.4, color: '#a08a6a' },
+  titan:  { name: 'Titan', icon: '🗿', hp: 27000, dmg: 34, xp: 1600, spd: 150, aggro: 2200, r: 64, isBoss: true, titan: true, dropTier: 90, title: 'TITAN — PRIMAL CỦA ĐẤT', atkRange: 175, atkCd: 2.4, color: '#a08a6a' },
 };
 
 // Map 4700x1600 — trái (start) → giữa (Ifrit) → phải (Titan)
