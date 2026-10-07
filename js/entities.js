@@ -1421,7 +1421,17 @@ function drawProjs(ctx) {
     ctx.translate(pr.x, pr.y);
     if (pr.spin) ctx.rotate(G.t * 14);
     else if (pr.ang !== undefined) ctx.rotate(pr.ang);
-    drawEmoji(ctx, pr.icon, 0, 0, pr.size);
+    if (pr.arrow) {
+      // mũi tên đá: cán + đầu nhọn + lông vũ, chĩa theo hướng bay
+      ctx.strokeStyle = '#8a7458'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(-pr.size, 0); ctx.lineTo(pr.size * 0.55, 0); ctx.stroke();
+      ctx.fillStyle = '#e8dcc0';
+      ctx.beginPath(); ctx.moveTo(pr.size * 1.05, 0); ctx.lineTo(pr.size * 0.35, -6); ctx.lineTo(pr.size * 0.35, 6); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#c9b896'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(-pr.size, -5); ctx.lineTo(-pr.size * 0.55, 0); ctx.lineTo(-pr.size, 5); ctx.stroke();
+    } else {
+      drawEmoji(ctx, pr.icon, 0, 0, pr.size);
+    }
     ctx.restore();
   }
 }
@@ -1734,6 +1744,7 @@ function titanStaggered(e, dur) {
   e.vulnT = dur;
   e.cast = null;
   e.rush = null; // choáng cũng ngắt dở chuỗi Granite Rush
+  e.p2Intro = null; e.jumpZ = 0; // và ngắt dở màn mở P2 (nhảy/xạ tên)
   G.markers = G.markers.filter(m => m.type !== 'rush');
   cancelOwnerTelegraphs(e);
   G.markers = G.markers.filter(m => m.owner !== e); // marker gắn với cast (vd Mountain Buster) cũng bị ngắt
@@ -1831,6 +1842,8 @@ function updateTitan(e, dt) {
   }
   // GRANITE RUSH mở màn: Titan khóa 1 mục tiêu và lướt qua 3 lần (dmg cả đường lướt)
   if (e.rush) { updateTitanRush(e, dt); return; }
+  // Màn mở P2: nhảy vào giữa sân + xạ 5 mũi tên đá theo đường thẳng
+  if (e.p2Intro) { updateTitanP2Intro(e, dt); return; }
   if (e.openerPending) {
     e.openerDelay -= dt;
     if (e.openerDelay <= 0) { e.openerPending = false; startTitanRush(e); }
@@ -1882,6 +1895,7 @@ function updateTitan(e, dt) {
     Snd.sfx('rumble'); G.cam.shake = 14;
     rockBurst(e.x, e.y, 16, 240); // gầm chuyển phase
     G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 420, t: 0, tmax: 0.6, color: '#d9c48f', w: 8 });
+    if (e.phaseIdx === 1) startTitanP2Intro(e); // mở màn P2: nhảy giữa sân + xạ mũi tên
   }
   const phNow = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)];
   // Tức giận: player né sạch 3 telegraph liên tiếp → đòn kế nhanh hơn 20%
@@ -1998,6 +2012,68 @@ function updateTitanRush(e, dt) {
   }
   // phase 'aim': đứng chồn chân khai telegraph — onResolve của telegraph sẽ gọi titanRushDash
 }
+
+// ---------- MÀN MỞ P2: NHẢY VÀO GIỮA SÂN + XẠ MŨI TÊN ĐÁ (5 PHÁT) ----------
+function startTitanP2Intro(e) {
+  e.p2Intro = { stage: 'jump', t: 0, fromX: e.x, fromY: e.y, jumpDur: 0.85, shotsLeft: 5, shotT: 0.55 };
+  e.abilityCd = 1.6; // hết màn mở P2 mới quay lại rotation
+  G.toasts.push({ txt: '🗿 TITAN NHẢY VÀO GIỮA SÂN — né MŨI TÊN ĐÁ theo đường thẳng!', t: 0, tmax: 2.6, color: '#ffd75e' });
+  Snd.sfx('rumble');
+}
+function titanArrowShot(e, n) {
+  const A = MAP.titanArena;
+  const alive = partyMembers().filter(m => m.alive);
+  if (!alive.length) return false;
+  // mỗi phát nhắm 1 mục tiêu sống ngẫu nhiên — ép cả team di chuyển, không đứng yên
+  const tgt = choice(alive);
+  const a = ang(e.x, e.y, tgt.x, tgt.y);
+  e.face = a;
+  // tia xuyên qua mục tiêu tới sát viền arena
+  const ex = A.x + Math.cos(a) * (A.r + 70), ey = A.y + Math.sin(a) * (A.r + 70);
+  const len = dist(e.x, e.y, ex, ey);
+  const tmax = 0.85; // thời gian ngắm
+  addTelegraph({ owner: e, shape: 'rect', x: e.x + Math.cos(a) * len / 2, y: e.y + Math.sin(a) * len / 2, w: len, h: 58, ang: a, tmax, dmg: 280 * e.atkBuff, label: 'Stone Arrow', resolveFx: 'stone' });
+  // mũi tên đá bay dọc tia — tới nơi đúng lúc đường nổ
+  addProj({ x: e.x + Math.cos(a) * e.r * 0.5, y: e.y + Math.sin(a) * e.r * 0.5, tx: ex, ty: ey, spd: len / tmax, arrow: true, size: 22, color: '#d9c48f', trail: '#e8dcc0', visual: true });
+  e.cast = { id: 'arrow', name: `Xạ Mũi Tên Đá (${n}/5)`, t: 0, tmax, color: '#e0c9a0' };
+  Snd.sfx('cast');
+  return true;
+}
+function updateTitanP2Intro(e, dt) {
+  const I = e.p2Intro, A = MAP.titanArena;
+  I.t += dt;
+  if (I.stage === 'jump') {
+    const k = Math.min(1, I.t / I.jumpDur);
+    const s = k * k * (3 - 2 * k); // smoothstep — cất cánh chậm, tiếp đất dập
+    e.x = lerp(I.fromX, A.x, s);
+    e.y = lerp(I.fromY, A.y, s);
+    e.jumpZ = Math.sin(k * Math.PI) * 120;
+    if (Math.random() < 0.6) addPart(e.x + rand(-18, 18), e.y + rand(-12, 12), rand(-40, 40), rand(-80, -20), choice(['#8a7458', '#b8a878']), rand(3, 6), 0.5);
+    if (k >= 1) {
+      e.jumpZ = 0;
+      I.stage = 'volley';
+      I.shotT = 0.55; // hơi nghỉ sau tiếp đất rồi bắn phát đầu
+      rockBurst(e.x, e.y, 26, 380);
+      G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 360, t: 0, tmax: 0.5, color: '#d9c48f', w: 8 });
+      G.cam.shake = 14; Snd.sfx('bigboom');
+      G.toasts.push({ txt: '🏹 XẠ MŨI TÊN ĐÁ — 5 phát, né theo ĐƯỜNG THẲNG!', t: 0, tmax: 2.4, color: '#ffd75e' });
+    }
+    return;
+  }
+  // volley: mỗi phát = 1 đường thẳng ngắm 0.85s rồi nổ đá dọc tia
+  I.shotT -= dt;
+  if (I.shotT <= 0) {
+    I.shotsLeft--;
+    const ok = titanArrowShot(e, 5 - I.shotsLeft);
+    if (!ok || I.shotsLeft <= 0) {
+      e.p2Intro = null; e.abilityCd = 1.6;
+      if (!ok) e.cast = null; // phát cuối giữ cast bar tới khi đường nổ rồi tự xoá
+      return;
+    }
+    I.shotT = 1.1; // 0.85s ngắm + 0.25s nghỉ giữa 2 phát
+  }
+  if (e.cast) e.cast.t = Math.min(e.cast.tmax, e.cast.t + dt);
+}
 function cancelOwnerTelegraphs(owner) {
   G.telegraphs = G.telegraphs.filter(t => t.owner !== owner);
 }
@@ -2008,6 +2084,7 @@ function resetTitanFight() {
   e.engaged = false;
   e.cast = null; e.stunT = 0;
   e.rush = null; e.openerPending = false; e.openerDelay = 1.2;
+  e.p2Intro = null; e.jumpZ = 0;
   e.stagger = 0; e.staggeredT = 0; e.vulnT = 0; e.shielded = false;
   e.phaseIdx = 0; e.rotIdx = 0; e.abilityCd = 2.5; e.clawCd = 1.5;
   e.heartDone = false; e.checkDone = false; e.skipFirstGaol = false;

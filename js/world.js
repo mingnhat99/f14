@@ -512,9 +512,10 @@ const World = {
   },
   drawTitan(ctx, e) {
     const t = G.t;
-    this.drawShadow(ctx, e.x, e.y, e.r * 1.1);
+    const jz = e.jumpZ || 0; // độ cao nhảy (màn mở P2) — bóng đè co lại, thân nhấc lên
+    this.drawShadow(ctx, e.x, e.y, e.r * 1.1 * (1 - Math.min(0.4, jz / 300)));
     ctx.save();
-    ctx.translate(e.x, e.y - 10);
+    ctx.translate(e.x, e.y - 10 - jz);
     const g = ctx.createRadialGradient(-16, -20, 12, 0, 0, e.r + 18);
     g.addColorStop(0, '#c9b896'); g.addColorStop(0.55, '#8a7458'); g.addColorStop(1, '#3d3226');
     ctx.fillStyle = g;
