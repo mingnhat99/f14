@@ -9,8 +9,10 @@ const G = {
   cam: { x: 0, y: 0, shake: 0 },
   banner: null, toasts: [], dialogue: null, dlgIdx: 0,
   fate: { active: false, cooldown: 25, got: 0, need: 5, timeLeft: 0 },
-  boss: null, kills: 0, gil: 0, hintT: 0, dmgFlash: 0, flash: null,
+  boss: null, ifritDead: false, kills: 0, gil: 0, hintT: 0, dmgFlash: 0, flash: null,
   deathT: 0, victoryT: 0, demo: Q.get('demo') === '1', demoMove: null,
+  staggerCheck: null,
+  delayed: [],
 };
 
 // ----- khởi tạo -----
@@ -60,10 +62,13 @@ function resize() {
 function buildDuty() {
   G.enemies = []; G.parts = []; G.texts = []; G.projs = []; G.pickups = [];
   G.telegraphs = []; G.slashes = []; G.rings = []; G.markers = [];
+  G.delayed = [];
   G.player = makePlayer(G.selJob);
   G.kills = 0; G.gil = 0; G.paused = false; G.helpOpen = false;
   G.banner = null; G.toasts = []; G.dmgFlash = 0; G.flash = null;
   G.deathT = 0; G.victoryT = 0; G.bossGateAnnounced = false;
+  G.ifritDead = false;
+  G.staggerCheck = null;
   G.tut = { idx: 0, count: {}, used: new Set(), skip: Q.get('boss') === '1' || G.demo, progress: 0 };
   makeAllies();
   G.cam.x = clamp(G.player.x - G.VW / 2, 0, MAP.w - G.VW);
@@ -72,10 +77,22 @@ function buildDuty() {
   World.build();
   for (const pk of PACKS) for (const [type, x, y] of pk.mobs) spawnEnemy(type, x, y, { pack: pk.id, tier: ITEM_TIERS[pk.id] });
   G.boss = spawnEnemy('ifrit', MAP.arena.x, MAP.arena.y - 40, { tier: ITEM_TIERS.boss });
+  const titan = spawnEnemy('titan', MAP.titanArena.x, MAP.titanArena.y - 40, { tier: ITEM_TIERS.titan });
+  titan.arena = MAP.titanArena;
+  for (const pk of TITAN_PACKS) for (const [type, x, y] of pk.mobs) spawnEnemy(type, x, y, { pack: pk.id, tier: ITEM_TIERS[pk.id] });
+  if (Q.get('titan') === '1') { // debug: vào thẳng Titan
+    for (const en of G.enemies) if (!en.def.isBoss) en.alive = false;
+    G.kills = TRASH_TOTAL;
+    for (const g of G.gates) { g.closed = false; g.anim = 0; }
+    const ifrit = G.enemies.find(en => en.def.isBoss && !en.def.titan);
+    if (ifrit && ifrit.alive) killEnemy(ifrit); // chạy ifritDefeated → mở cổng titan
+    G.tut.skip = true;
+    G.player.x = MAP.titanGateX - 140; G.player.y = MAP.titanArena.y;
+  }
   if (Q.get('boss') === '1') { // debug: mở thẳng boss
     for (const e of G.enemies) if (!e.def.isBoss) e.alive = false;
     G.kills = TRASH_TOTAL;
-    for (const g of G.gates) { g.closed = false; g.anim = 0; }
+    for (const g of G.gates) if (g.id === 'start' || g.id === 'boss') { g.closed = false; g.anim = 0; }
     G.player.x = MAP.arena.x - 260; G.player.y = MAP.arena.y;
   }
 }
@@ -102,10 +119,14 @@ function advanceDialogue() {
 // ----- các sự kiện lớn -----
 function bossDefeated() {
   G.victoryT = 1.8;
+  cancelOwnerTelegraphs(G.boss);
   G.cam.shake = 22;
   Snd.sfx('bigboom');
-  G.flash = { color: '#fff0d0', t: 0.5, tmax: 0.5 };
-  for (let i = 0; i < 80; i++) addPart(G.boss.x + rand(-60, 60), G.boss.y + rand(-50, 30), rand(-320, 320), rand(-420, -60), choice(['#ff7a3d', '#ffd75e', '#fff', '#c9402a']), rand(3, 8), 1.4);
+  const isTitan = G.boss.def.titan;
+  G.flash = { color: isTitan ? '#e8dcc0' : '#fff0d0', t: 0.5, tmax: 0.5 };
+  const cols = isTitan ? ['#c9b896', '#8a7458', '#fff', '#d9c48f'] : ['#ff7a3d', '#ffd75e', '#fff', '#c9402a'];
+  for (let i = 0; i < 80; i++) addPart(G.boss.x + rand(-60, 60), G.boss.y + rand(-50, 30), rand(-320, 320), rand(-420, -60), choice(cols), rand(3, 8), 1.4);
+  if (isTitan) { rockBurst(G.boss.x, G.boss.y, 40, 380); } // Titan sụp đổ trong bụi đá
 }
 function respawnPlayer() {
   const p = G.player;
@@ -119,6 +140,15 @@ function respawnPlayer() {
   // đồng đội hồi sinh cùng
   for (const a of G.allies) { a.alive = true; a.hp = a.maxhp; a.x = p.x + rand(-40, 40); a.y = p.y + 42; a.deadT = 0; }
   G.markers = [];
+  if (inArena && G.boss.def.titan) {
+    resetTitanFight();
+    p.x = MAP.titanGateX - 90; p.y = MAP.titanArena.y;
+    p.weaknessT = 0; // thử lại = lượt mới hoàn toàn, không phạt weakness
+    for (const a of G.allies) { a.alive = true; a.hp = a.maxhp; a.deadT = 0; a.x = p.x - 30; a.y = p.y + 36; }
+    G.toasts.push({ txt: '🗿 Thử lại: Titan đã hồi phục hoàn toàn!', t: 0, tmax: 2.6, color: '#e0c9a0' });
+    G.state = 'duty';
+    return;
+  }
   if (inArena) {
     // Ifrit về giữa, hồi 25% máu
     G.boss.hp = Math.min(G.boss.maxhp, G.boss.hp + G.boss.maxhp * 0.25);
@@ -183,7 +213,7 @@ function updateTutorial() {
     case 'dodge': v = G.tut.count.dodge || 0; break;
     case 'potion': v = G.tut.count.potion || 0; break;
     case 'trash': v = Math.min(TRASH_TOTAL, G.kills); break;
-    case 'boss': v = (G.boss && !G.boss.alive) ? 1 : 0; break;
+    case 'boss': v = G.ifritDead ? 1 : 0; break;
   }
   G.tut.progress = v;
   if (v >= step.need) {
@@ -218,6 +248,10 @@ function demoBot() {
     let a = ang(x, y, p.x, p.y);
     if (danger.shape === 'annulus') a += Math.PI; // ôm sát boss
     if (danger.shape === 'rect') a = danger.ang + Math.PI / 2 * (Math.random() < 0.5 ? 1 : -1);
+    if (danger.shape === 'sector' && danger.safeAng !== undefined) {
+      const A = MAP.titanArena;
+      a = ang(p.x, p.y, A.x + Math.cos(danger.safeAng) * 200, A.y + Math.sin(danger.safeAng) * 200);
+    }
     G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 1 };
     return;
   }
@@ -247,9 +281,9 @@ function demoBot() {
       if (push) { const n = Math.hypot(ax, ay) || 1; G.demoMove = { x: ax / n, y: ay / n, mag: 1 }; return; }
     }
   }
-  const foes = G.enemies.filter(e => e.alive && !e.def.nail);
-  const nails = G.enemies.filter(e => e.alive && e.def.nail);
-  let tgt = nails[0] || foes.reduce((b, e) => !b || dist(p.x, p.y, e.x, e.y) < dist(p.x, p.y, b.x, b.y) ? e : b, null);
+  const mech = G.enemies.filter(e => e.alive && (e.def.nail || e.def.heart || e.def.gaol));
+  const foes = G.enemies.filter(e => e.alive && !e.def.nail && !e.def.heart && !e.def.gaol);
+  let tgt = mech[0] || foes.reduce((b, e) => !b || dist(p.x, p.y, e.x, e.y) < dist(p.x, p.y, b.x, b.y) ? e : b, null);
   if (!tgt) { // đi về phía đấu trường
     const a = ang(p.x, p.y, MAP.arena.x, MAP.arena.y);
     G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 1 };
@@ -270,6 +304,15 @@ function demoBot() {
     for (let i = 0; i < p.skills.length; i++) {
       if (tryUseSkill(p, i)) break;
     }
+  }
+  // counter khi Titan cast đòn xanh (đợi nửa cast cho tự nhiên)
+  const tb = G.boss;
+  if (tb && tb.def.titan && tb.engaged && tb.cast && tb.cast.counterable && tb.cast.t > tb.cast.tmax * 0.45) {
+    const d = dist(p.x, p.y, tb.x, tb.y);
+    if (d > 220 + tb.r) {
+      const a = ang(p.x, p.y, tb.x, tb.y);
+      G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 1 };
+    } else tryCounter(p);
   }
   if (p.hp < p.maxhp * 0.42) tryPotion(p);
   if (p.lb >= 100) tryLB(p);
@@ -315,6 +358,7 @@ function handleTap(x, y) {
         else if (b.id === 'help') { G.helpOpen = true; Snd.sfx('select'); }
         else if (b.id === 'potion') tryPotion(G.player);
         else if (b.id === 'lb') tryLB(G.player);
+        else if (b.id === 'counter') tryCounter(G.player);
         else if (b.id === 'skill') tryUseSkill(G.player, b.idx);
         return;
       }
@@ -362,6 +406,10 @@ function update(dt) {
   G.dmgFlash = Math.max(0, G.dmgFlash - dt * 2.2);
   if (G.flash) { G.flash.t -= dt; if (G.flash.t <= 0) G.flash = null; }
   G.hintT = Math.max(0, G.hintT - dt);
+  for (const d of G.delayed) d.t -= dt;
+  const fireNow = G.delayed.filter(d => d.t <= 0);
+  G.delayed = G.delayed.filter(d => d.t > 0);
+  for (const d of fireNow) d.fn();
 
   if (G.state === 'dialogue') return;
   if (G.state !== 'duty') { updateParts(dt); return; }
@@ -459,8 +507,13 @@ function renderDutyWorld(ctx) {
     ctx.translate(rand(-sh, sh), rand(-sh, sh));
   }
   World.drawGround(ctx);
+  // drawGates/drawTelegraphs vẽ bằng tọa độ thế giới → phải bọc camera transform
+  // (drawGround/drawEntities/drawEmbers tự trừ camera bên trong, không được bọc 2 lần)
+  ctx.save();
+  ctx.translate(-G.cam.x, -G.cam.y);
   World.drawGates(ctx);
   drawTelegraphs(ctx);
+  ctx.restore();
   World.drawEntities(ctx);
   World.drawEmbers(ctx);
   if (sh > 0.3) ctx.restore();
@@ -485,6 +538,7 @@ function loop(ts) {
       if (act.startsWith('skill:')) tryUseSkill(G.player, +act.slice(6));
       else if (act === 'potion') tryPotion(G.player);
       else if (act === 'lb') tryLB(G.player);
+      else if (act === 'counter') tryCounter(G.player);
     }
   }
   Input.keyActions.length = 0;

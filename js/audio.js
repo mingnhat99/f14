@@ -43,7 +43,9 @@ const Snd = {
       case 'death': this.tone(150, 0.5, 'sawtooth', 0.11, -100); break;
       case 'victory': [523, 659, 784, 1046, 784, 1046, 1318].forEach((f, i) => this.tone(f, 0.24, 'triangle', 0.11, 0, i * 0.14)); break;
       case 'fail': [320, 260, 200, 140].forEach((f, i) => this.tone(f, 0.32, 'sawtooth', 0.09, -30, i * 0.2)); break;
+      case 'rumble': this.tone(55, 0.8, 'sawtooth', 0.16, -15); this.tone(38, 0.9, 'sine', 0.2, -8); break;
       case 'gate': this.tone(200, 0.4, 'triangle', 0.1, 300); this.tone(400, 0.5, 'sine', 0.06, 300, 0.1); break;
+      case 'parry': this.tone(1400, 0.1, 'square', 0.12, -500); this.tone(880, 0.2, 'sine', 0.1, -220, 0.02); break;
     }
   }
 };

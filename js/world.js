@@ -19,6 +19,13 @@ const World = {
       const a = i / 16 * TAU + 0.12;
       O.push([MAP.arena.x + Math.cos(a) * (MAP.arena.r + 40), MAP.arena.y + Math.sin(a) * (MAP.arena.r + 40), randi(34, 52)]);
     }
+    // vòng đá quanh đấu trường Titan + hầm dẫn vào
+    for (let i = 0; i < 14; i++) {
+      const a = i / 14 * TAU + 0.3;
+      O.push([MAP.titanArena.x + Math.cos(a) * (MAP.titanArena.r + 40), MAP.titanArena.y + Math.sin(a) * (MAP.titanArena.r + 40), randi(34, 52)]);
+    }
+    O.push([3260, 380, 42], [3260, 1220, 42], [3420, 300, 36], [3420, 1300, 36],
+           [3560, 380, 38], [3560, 1220, 38], [3820, 240, 34], [3820, 1360, 34]);
     this.obstacles = O.map(([x, y, r]) => ({ x, y, r }));
 
     this.lavas = [
@@ -34,6 +41,7 @@ const World = {
       { icon: '🥀', x: 1000, y: 620, s: 20 }, { icon: '🥀', x: 1520, y: 1100, s: 20 },
       { icon: '⛰️', x: 120, y: 500, s: 40 }, { icon: '⛰️', x: 3100, y: 1450, s: 44 },
       { icon: '🔥', x: 2520, y: 620, s: 24 }, { icon: '🔥', x: 2780, y: 1000, s: 24 },
+      { icon: '⛰️', x: 3350, y: 800, s: 40 }, { icon: '⛰️', x: 4560, y: 1450, s: 44 },
     ];
     // pattern nền
     const tile = document.createElement('canvas');
@@ -62,6 +70,7 @@ const World = {
     G.gates = [
       { id: 'start', x: MAP.barrierX, closed: true, anim: 1 },
       { id: 'boss', x: MAP.arenaGateX, closed: true, anim: 1 },
+      { id: 'titan', x: MAP.titanGateX, closed: true, anim: 1 },
     ];
   },
 
@@ -90,6 +99,15 @@ const World = {
     ctx.beginPath(); ctx.ellipse(A.x, A.y, A.r - 22, (A.r - 22) * 0.9, 0, 0, TAU); ctx.stroke();
     ctx.strokeStyle = 'rgba(217,196,143,0.22)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(A.x, A.y, A.r * 0.55, A.r * 0.5, 0, 0, TAU); ctx.stroke();
+    // đấu trường Titan
+    const TA = MAP.titanArena;
+    const gt = ctx.createRadialGradient(TA.x, TA.y, TA.r * 0.2, TA.x, TA.y, TA.r);
+    gt.addColorStop(0, 'rgba(72,64,52,0.75)');
+    gt.addColorStop(1, 'rgba(30,26,20,0.4)');
+    ctx.fillStyle = gt;
+    ctx.beginPath(); ctx.ellipse(TA.x, TA.y, TA.r, TA.r * 0.9, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(217,196,143,0.3)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.ellipse(TA.x, TA.y, TA.r - 22, (TA.r - 22) * 0.9, 0, 0, TAU); ctx.stroke();
     // FATE zone
     if (G.fate.active || G.fate.cooldown < 12) {
       const F = MAP.fateZone;
@@ -177,7 +195,7 @@ const World = {
     // bóng + telegraph dưới chân vẽ ở tầng khác; đây là thân
     const drawables = [];
     for (const e of G.enemies) if (e.alive) {
-      drawables.push({ y: e.y, kind: e.def.isBoss ? 'boss' : e.def.nail ? 'nail' : 'enemy', o: e });
+      drawables.push({ y: e.y, kind: e.def.titan ? 'titan' : e.def.isBoss ? 'boss' : e.def.gaol ? 'gaol' : e.def.heart ? 'heart' : e.def.nail ? 'nail' : 'enemy', o: e });
     }
     for (const a of G.allies || []) {
       if (a.alive) drawables.push({ y: a.y, kind: 'ally', o: a });
@@ -187,7 +205,10 @@ const World = {
     if (p && p.alive) drawables.push({ y: p.y, kind: 'player', o: p });
     drawables.sort((a, b) => a.y - b.y);
     for (const d of drawables) {
+      if (d.kind === 'titan') this.drawTitan(ctx, d.o);
       if (d.kind === 'boss') this.drawIfrit(ctx, d.o);
+      else if (d.kind === 'gaol') this.drawGaol(ctx, d.o);
+      else if (d.kind === 'heart') this.drawHeart(ctx, d.o);
       else if (d.kind === 'nail') this.drawNail(ctx, d.o);
       else if (d.kind === 'enemy') this.drawEnemy(ctx, d.o);
       else if (d.kind === 'ally') this.drawAlly(ctx, d.o);
@@ -369,6 +390,53 @@ const World = {
     ctx.fillRect(e.x - w / 2 + 1, e.y - 51.5, (w - 2) * fk, 3);
     ttext(ctx, 'Infernal Nail', e.x, e.y - 60, 11, '#ff9c6b');
   },
+  drawHeart(ctx, e) {
+    this.drawShadow(ctx, e.x, e.y, 18);
+    const gl = 0.6 + 0.4 * Math.sin(G.t * 8);
+    ctx.save();
+    ctx.translate(e.x, e.y - 8);
+    ctx.rotate(Math.PI / 4);
+    const g = ctx.createLinearGradient(-18, -18, 18, 18);
+    g.addColorStop(0, '#e8dcff'); g.addColorStop(1, '#8a72c8');
+    ctx.fillStyle = g;
+    ctx.fillRect(-16, -16, 32, 32);
+    ctx.strokeStyle = `rgba(220,200,255,${gl})`; ctx.lineWidth = 3;
+    ctx.strokeRect(-16, -16, 32, 32);
+    ctx.restore();
+    const w = 56, hpk = clamp(e.hp / e.maxhp, 0, 1), fk = clamp(e.fuse / 12, 0, 1);
+    ctx.fillStyle = 'rgba(10,14,26,0.8)'; ctx.fillRect(e.x - w / 2, e.y - 44, w, 6);
+    ctx.fillStyle = '#c8b8ff'; ctx.fillRect(e.x - w / 2 + 1, e.y - 43, (w - 2) * hpk, 4);
+    ctx.fillStyle = 'rgba(10,14,26,0.8)'; ctx.fillRect(e.x - w / 2, e.y - 52, w, 4);
+    ctx.fillStyle = fk < 0.3 ? '#ff3b3b' : '#ffd75e';
+    ctx.fillRect(e.x - w / 2 + 1, e.y - 51.5, (w - 2) * fk, 3);
+    ttext(ctx, 'Heart of Stone', e.x, e.y - 62, 12, '#c8b8ff', 'center', UI_FONT, 1, 'bold');
+  },
+  drawGaol(ctx, e) {
+    const m = e.member;
+    // vẽ người bị giam bên trong
+    if (m && m.alive && m !== G.player) this.drawAlly(ctx, m);
+    const gl = 0.6 + 0.4 * Math.sin(G.t * 6);
+    ctx.save();
+    ctx.translate(e.x, e.y - 6);
+    ctx.strokeStyle = `rgba(190,170,130,${gl})`;
+    ctx.lineWidth = 7;
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * TAU + Math.PI / 6;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * e.r, Math.sin(a) * e.r * 0.7);
+      ctx.lineTo(Math.cos(a + Math.PI) * e.r, Math.sin(a + Math.PI) * e.r * 0.7);
+      ctx.stroke();
+    }
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r + 4, (e.r + 4) * 0.72, 0, 0, TAU);
+    ctx.strokeStyle = 'rgba(120,100,70,0.9)'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.restore();
+    const w = 56, hpk = clamp(e.hp / e.maxhp, 0, 1), fk = clamp(e.fuse / 10, 0, 1);
+    ctx.fillStyle = 'rgba(10,14,26,0.8)'; ctx.fillRect(e.x - w / 2, e.y - 48, w, 6);
+    ctx.fillStyle = '#d9c48f'; ctx.fillRect(e.x - w / 2 + 1, e.y - 47, (w - 2) * hpk, 4);
+    ctx.fillStyle = fk < 0.3 ? '#ff3b3b' : '#ffd75e';
+    ttext(ctx, `${Math.ceil(e.fuse)}s`, e.x, e.y - 60, 15, fk < 0.3 ? '#ff5b5b' : '#ffd75e', 'center', UI_FONT, 1, 'bold');
+    ttext(ctx, 'Granite Gaol', e.x, e.y - 74, 11, '#d9c48f', 'center', UI_FONT, 0.95);
+  },
   drawIfrit(ctx, e) {
     const t = G.t;
     this.drawShadow(ctx, e.x, e.y, e.r * 1.1);
@@ -421,6 +489,65 @@ const World = {
       drawEmoji(ctx, '💤', e.x + 34, e.y - e.r - 26, 18, 0.8);
     }
   },
+  drawTitan(ctx, e) {
+    const t = G.t;
+    this.drawShadow(ctx, e.x, e.y, e.r * 1.1);
+    ctx.save();
+    ctx.translate(e.x, e.y - 10);
+    const g = ctx.createRadialGradient(-16, -20, 12, 0, 0, e.r + 18);
+    g.addColorStop(0, '#c9b896'); g.addColorStop(0.55, '#8a7458'); g.addColorStop(1, '#3d3226');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r, e.r * 0.95, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(20,16,10,0.8)'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.fillStyle = '#6e5c44';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * 20, -e.r * 0.55); ctx.lineTo(s * 58, -e.r * 0.95); ctx.lineTo(s * 40, -e.r * 0.3);
+      ctx.closePath(); ctx.fill();
+    }
+    const gl = 0.5 + 0.4 * Math.sin(t * 3);
+    ctx.strokeStyle = `rgba(255,180,90,${gl * 0.8})`; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-e.r * 0.5, e.r * 0.1); ctx.lineTo(-e.r * 0.1, -e.r * 0.2); ctx.lineTo(e.r * 0.3, e.r * 0.25); ctx.stroke();
+    ctx.fillStyle = `rgba(255,210,90,${gl})`;
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * 17, -e.r * 0.25, 7, 4.5, 0, 0, TAU); ctx.fill(); }
+    if ((e.staggeredT || 0) > 0) drawEmoji(ctx, '💫', 0, -e.r - 34, 30);
+    if (e.flashT > 0) {
+      ctx.globalAlpha = e.flashT * 5;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(0, 0, e.r, e.r * 0.95, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    if (e.cast && e.cast.counterable) {
+      const last1s = e.cast.tmax - e.cast.t < 1;
+      const pl = 0.6 + 0.4 * Math.sin(G.t * (last1s ? 30 : 12)); // 1s cuối nhấp nháy gấp
+      ctx.strokeStyle = `rgba(180,240,255,${pl})`;
+      ctx.lineWidth = last1s ? 9 : 6;
+      ctx.beginPath(); ctx.ellipse(0, 0, e.r + 16, (e.r + 16) * 0.95, 0, 0, TAU); ctx.stroke();
+      // vòng đứt nét chỉ TẦM counter (phải đứng trong vòng này)
+      ctx.setLineDash([16, 12]);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = `rgba(110,231,255,${0.35 + 0.25 * Math.sin(G.t * 6)})`;
+      ctx.beginPath(); ctx.ellipse(0, 0, e.r + 220, (e.r + 220) * 0.95, 0, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      drawEmoji(ctx, '🛡️', 0, -e.r - 66, 26, pl);
+    }
+    ctx.restore();
+    if (!e.engaged) {
+      ttext(ctx, 'ZZZ...', e.x, e.y - e.r - 26, 15, 'rgba(200,200,220,0.75)');
+      drawEmoji(ctx, '💤', e.x + 38, e.y - e.r - 26, 18, 0.8);
+    }
+    if (e.cast) {
+      const w = 170, k = e.cast.t / e.cast.tmax;
+      ctx.fillStyle = 'rgba(10,14,26,0.9)';
+      ctx.fillRect(e.x - w / 2, e.y - e.r - 50, w, 12);
+      ctx.strokeStyle = 'rgba(217,196,143,0.6)'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(e.x - w / 2, e.y - e.r - 50, w, 12);
+      ctx.fillStyle = e.cast.color || '#ffd75e';
+      ctx.fillRect(e.x - w / 2 + 1.5, e.y - e.r - 48.5, (w - 3) * clamp(k, 0, 1), 9);
+      const castCol = e.cast.counterable ? '#9fe8ff' : '#ffd9a0';
+      ttext(ctx, `${e.cast.counterable ? '🛡 ' : ''}${e.cast.name}${e.cast.counterable ? ' — BẤM 6!' : ''}`, e.x, e.y - e.r - 64, 16, castCol, 'center', UI_FONT, 0.95, 'bold');
+    }
+  },
 
   updateCamera(dt) {
     const p = G.player, cam = G.cam;
@@ -445,6 +572,8 @@ const World = {
     // đấu trường
     ctx.fillStyle = 'rgba(200,60,40,0.25)';
     ctx.beginPath(); ctx.ellipse(x + MAP.arena.x * sx, y + MAP.arena.y * sy, MAP.arena.r * sx, MAP.arena.r * sy, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(200,180,120,0.25)';
+    ctx.beginPath(); ctx.ellipse(x + MAP.titanArena.x * sx, y + MAP.titanArena.y * sy, MAP.titanArena.r * sx, MAP.titanArena.r * sy, 0, 0, TAU); ctx.fill();
     // cổng
     for (const g of G.gates) {
       if (g.closed) {
@@ -500,7 +629,7 @@ function collideWorld(o) {
   // giới hạn trong đấu trường khi boss đang chiến đấu
   const b = G.boss;
   if (b && b.engaged && b.alive) {
-    const A = MAP.arena;
+    const A = b.arena || MAP.arena;
     const d = dist(o.x, o.y, A.x, A.y);
     if (d > A.r - o.r - 8) {
       const a = ang(A.x, A.y, o.x, o.y);
@@ -515,13 +644,20 @@ function applyGates(p) {
     const R = p.r + 26;
     if (g.id === 'start') {
       if (p.x > g.x - R && p.x < g.x + R) p.x = (p.x <= g.x) ? g.x - R : g.x + R;
-    } else { // boss gate
+    } else if (g.id === 'boss') { // boss gate
       // trước khi trash hết: chặn không cho đi sang phải
       const trashDone = G.kills >= TRASH_TOTAL;
       if (!trashDone) {
         if (p.x > g.x - R) p.x = g.x - R;
       } else if (G.boss && G.boss.engaged && G.boss.alive) {
         if (p.x < g.x + R) p.x = g.x + R; // khoá trong đấu trường
+      }
+    } else if (g.id === 'titan') {
+      const titan = G.enemies.find(x => x.alive && x.def && x.def.titan);
+      if (g.closed && !(titan && titan.engaged)) {
+        if (p.x > g.x - R) p.x = g.x - R;
+      } else if (titan && titan.engaged) {
+        if (p.x < g.x + R) p.x = g.x + R; // khoá trong đấu trường Titan
       }
     }
   }

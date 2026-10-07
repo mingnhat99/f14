@@ -17,6 +17,7 @@ const HUD = {
     const T = (x, y, r) => ({ x: G.VW + (x - 1280) * s, y: G.VH + (y - 720) * s, r: r * s });
     this.skillBtns = [T(1152, 588, 50), T(1052, 648, 44), T(1052, 522, 44), T(952, 590, 42), T(958, 478, 40)];
     this.lbBtn = T(852, 548, 38);
+    this.counterBtn = T(866, 460, 38);
     this.potBtn = T(1206, 452, 30);
     this.pauseBtn = { x: G.VW - 36, y: 22, r: 20 };
     this.helpBtn = { x: G.VW - 84, y: 22, r: 20 };
@@ -36,6 +37,7 @@ const HUD = {
     if (circ(this.helpBtn)) return { id: 'help' };
     if (circ(this.potBtn)) return { id: 'potion' };
     if (circ(this.lbBtn)) return { id: 'lb' };
+    if (circ(this.counterBtn)) return { id: 'counter' };
     for (let i = 0; i < this.skillBtns.length; i++) if (circ(this.skillBtns[i])) return { id: 'skill', idx: i };
     return null;
   },
@@ -292,14 +294,53 @@ const HUD = {
     const b = G.boss;
     if (b && b.engaged && b.alive) {
       const bbw = 560, bbx = (G.VW - bbw) / 2, bby = 58;
-      ttext(ctx, 'IFRIT — PRIMAL CỦA LỬA', cx, bby - 6, 15, '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
+      ttext(ctx, b.def.title || 'IFRIT — PRIMAL CỦA LỬA', cx, bby - 6, 15, b.def.titan ? '#e0c9a0' : '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
       this.bar(ctx, bbx, bby, bbw, 20, b.hp / b.maxhp, '#c9402a');
       ttext(ctx, `${Math.ceil(Math.max(0, b.hp))} / ${b.maxhp}`, cx, bby + 10, 12, '#fff', 'center', UI_FONT, 1, 'bold');
       if (b.atkBuff > 1) ttext(ctx, `🔥 ENRAGE x${b.atkBuff.toFixed(2)}`, bbx + bbw - 4, bby - 6, 12, '#ff5b5b', 'right');
-      if (b.cast) {
+      if (b.def.titan) {
+        const sk = clamp((b.stagger || 0) / 100, 0, 1);
+        this.bar(ctx, bbx, bby + 22, bbw, 10, sk, sk > 0.7 ? '#ffef9a' : '#ffe066');
+        ttext(ctx, 'STAGGER', bbx + 46, bby + 27, 9, '#1a1408', 'center', UI_FONT, 1, 'bold');
+        if (b.cast) {
+          this.bar(ctx, bbx, bby + 36, bbw, 14, b.cast.t / b.cast.tmax, b.cast.color || '#ffd75e', 'rgba(20,16,8,0.9)');
+          ttext(ctx, `⚒ ${b.cast.name}${b.cast.counterable ? '  ⟵ COUNTER! (6)' : ''}`, cx, bby + 43, 11, b.cast.counterable ? '#0a4a5a' : '#1a1408', 'center', UI_FONT, 1, 'bold');
+        }
+      } else if (b.cast) {
         this.bar(ctx, bbx, bby + 24, bbw, 14, b.cast.t / b.cast.tmax, '#ffd75e', 'rgba(20,16,8,0.9)');
         ttext(ctx, `⚒ ${b.cast.name}`, cx, bby + 31, 11, '#1a1408', 'center', UI_FONT, 1, 'bold');
       }
+    }
+
+    // ----- overlay stagger check -----
+    if (G.staggerCheck) {
+      const sc = G.staggerCheck;
+      const w = 460, x = (G.VW - w) / 2, y = 128;
+      const k = clamp(sc.titan.stagger / 100, 0, 1);
+      const pulse = 0.7 + 0.3 * Math.sin(G.t * 9);
+      ctx.strokeStyle = `rgba(255,224,102,${pulse})`; ctx.lineWidth = 3;
+      this.panel(ctx, x, y, w, 52, 0.9);
+      ttext(ctx, '⚡ LÀM RUNG CHUYỂN TITAN!', x + w / 2, y + 14, 15, '#ffe066', 'center', UI_FONT, 1, 'bold');
+      this.bar(ctx, x + 16, y + 26, w - 90, 16, k, '#ffe066');
+      ttext(ctx, `${Math.ceil(sc.tmax - sc.t)}s`, x + w - 40, y + 34, 20, '#ff9c6b', 'center', UI_FONT, 1, 'bold');
+    }
+
+    // ----- prompt COUNTER khi Titan ra đòn xanh -----
+    if (G.boss && G.boss.engaged && G.boss.cast && G.boss.cast.counterable && G.player.alive) {
+      const c = G.boss.cast;
+      const left = c.tmax - c.t;
+      const near = dist(G.player.x, G.player.y, G.boss.x, G.boss.y) <= 220 + G.boss.r;
+      const fast = left < 1;
+      const pl = 0.6 + 0.4 * Math.sin(G.t * (fast ? 26 : 10));
+      const w2 = 420, x2 = (G.VW - w2) / 2, y2 = 196;
+      ctx.globalAlpha = 0.92;
+      roundRect(ctx, x2, y2, w2, 54, 14);
+      ctx.fillStyle = 'rgba(20,60,80,0.9)'; ctx.fill();
+      ctx.strokeStyle = `rgba(110,231,255,${pl})`; ctx.lineWidth = 3; ctx.stroke();
+      ctx.globalAlpha = 1;
+      drawEmoji(ctx, '🛡️', x2 + 36, y2 + 27, 30, pl);
+      ttext(ctx, near ? `BẤM [6] ĐỂ COUNTER — còn ${left.toFixed(1)}s!` : `LẠI GẦN TITAN ĐỂ COUNTER — ${left.toFixed(1)}s`, x2 + w2 / 2 + 14, y2 + 22, 17, near ? '#bff2ff' : '#ffd75e', 'center', UI_FONT, pl, 'bold');
+      this.bar(ctx, x2 + 30, y2 + 38, w2 - 60, 8, left / c.tmax, left < 1 ? '#ff9c6b' : '#6ee7ff');
     }
 
     World.drawMinimap(ctx);
@@ -446,6 +487,24 @@ const HUD = {
     ctx.strokeStyle = p.pot > 0 ? '#7de08a' : 'rgba(110,120,150,0.35)'; ctx.lineWidth = 2.5; ctx.stroke();
     drawEmoji(ctx, '🧪', pb.x, pb.y, 26, 1, 'P');
     ttext(ctx, `x${p.pot}`, pb.x + 16, pb.y + 18, 13, '#7de08a', 'center', UI_FONT, 1, 'bold');
+    // Counter (hệ thống Titan)
+    const cb = this.counterBtn;
+    const cReady = p.counterCd <= 0;
+    ctx.save();
+    ctx.translate(cb.x, cb.y);
+    ctx.beginPath(); ctx.arc(0, 0, cb.r, 0, TAU);
+    const cg = ctx.createRadialGradient(0, -cb.r * 0.4, 4, 0, 0, cb.r);
+    cg.addColorStop(0, cReady ? '#1f4a5a' : '#1c2238'); cg.addColorStop(1, '#0c1122');
+    ctx.fillStyle = cg; ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = cReady ? '#6ee7ff' : 'rgba(110,120,150,0.35)'; ctx.stroke();
+    drawEmoji(ctx, '🛡️', 0, -2, cb.r * 0.85, 1, 'CTR');
+    if (p.counterCd > 0) {
+      cdPie(ctx, 0, 0, cb.r, p.counterCd / 12);
+      ttext(ctx, p.counterCd > 1 ? Math.ceil(p.counterCd) : p.counterCd.toFixed(1), 0, 0, 17, '#fff', 'center', UI_FONT, 1, 'bold');
+    }
+    ctx.restore();
+    ttext(ctx, '6', cb.x - cb.r + 13, cb.y - cb.r + 13, 12, 'rgba(232,236,245,0.65)', 'center');
   },
 
   // ================= HƯỚNG DẪN NGƯỜI MỚI =================
@@ -521,14 +580,21 @@ const HUD = {
       ['🔥', 'Infernal Nail', 'Phá hủy NGAY trước khi đồng hồ cháy hết'],
       ['🪓🌸', 'NPC đồng đội', 'Thancred giữ aggro, Alisaie hồi máu — hãy đứng gần'],
       ['🌈', 'Limit Break', 'Đầy 100% thì bấm — chiêu cuối cực mạnh'],
+      ['⚡', 'STAGGER (thanh vàng)', 'Đánh liên tục để làm đầy — đầy 100 Titan CHOÁNG, nhận thêm damage'],
+      ['🛡️', 'COUNTER (nút 6)', 'Đòn cast XANH: lại gần bấm 🛡 đúng lúc để PARRY — không thì cả team ăn 80% HP'],
+      ['💠', 'Heart of Stone', 'Phá trong 12s khi xuất hiện — fail là WIPE cả team'],
+      ['🪨', 'Granite Gaol', 'Cũi đá giam 1 người — PHÁ CÙI trong 10s nếu không người đó chết'],
+      ['🌋', 'Earthen Fury', '3 đợt quét sân — chỉ góc XANH an toàn, đứng sai 1 lần là wipe'],
+      ['🌀', 'Seismic Dive', 'Titan CHÌM xuống rồi LAO TỚI chỗ bạn — vòng cam bám nửa cast rồi KHÓA lại: chạy ra ngay khi nó ngừng bám'],
+      ['🎯', 'Granite Rush (mở màn)', 'Đầu trận Titan khóa 1 người 🔴 rồi lướt qua 3 lần — ai trên đường lướt bị hất, tránh khỏi đường'],
     ];
     rows.forEach((r, i) => {
-      const ry = y + 84 + i * 44;
-      drawEmoji(ctx, r[0], x + 56, ry, 24);
-      ttext(ctx, r[1], x + 96, ry - 8, 16, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
-      ttext(ctx, r[2], x + 96, ry + 12, 14, '#c9d2e4', 'left');
+      const ry = y + 62 + i * 28;
+      drawEmoji(ctx, r[0], x + 56, ry, 20);
+      ttext(ctx, r[1], x + 96, ry - 7, 14, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
+      ttext(ctx, r[2], x + 96, ry + 10, 12, '#c9d2e4', 'left');
     });
-    ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · 1-5/Q/R trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
+    ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · 1-6/Q/R trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
     this.btn(ctx, x + w / 2 - 90, y + h - 44, 180, 32, 'Đã hiểu ✔', 'help-close');
   },
 
@@ -538,6 +604,8 @@ const HUD = {
       lines.push({ txt: `◆ Tiêu diệt tay sai Ifrit  (${G.kills}/${TRASH_TOTAL})`, color: '#ffd75e' });
     } else if (!(G.boss && G.boss.engaged)) {
       lines.push({ txt: '◆ Cổng đã mở — đến đấu trường!', color: '#7de08a' });
+    } else if (G.ifritDead && G.boss && G.boss.alive && G.boss.def.titan) {
+      lines.push({ txt: `◆ Hạ gục Titan  (${Math.ceil(Math.max(0, G.boss.hp))}/${G.boss.maxhp})`, color: '#e0c9a0' });
     } else if (G.boss.alive) {
       lines.push({ txt: `◆ Hạ gục Ifrit  (${Math.ceil(Math.max(0, G.boss.hp))}/${G.boss.maxhp})`, color: '#ff9c6b' });
     }
@@ -557,7 +625,7 @@ const HUD = {
     const w = 700, h = 430, x = (G.VW - w) / 2, y = 90;
     this.panel(ctx, x, y, w, h, 0.95);
     ttext(ctx, '⚜ DUTY COMPLETE ⚜', G.VW / 2, y + 62, 42, GOLD, 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, 'Bạn đã hạ gục Ifrit, Primal của Lửa!', G.VW / 2, y + 104, 18, '#c9d2e4');
+    ttext(ctx, 'Bạn đã hạ gục Titan, Primal của Đất — The Navel hoàn thành!', G.VW / 2, y + 104, 18, '#c9d2e4');
     const rows = [
       ['⏱ Thời gian', fmtTime(G.dutyTime)],
       ['💀 Quái vật đã diệt', `${G.kills + (G.fate ? G.fate.got : 0)}`],
@@ -589,7 +657,7 @@ const HUD = {
     this.panel(ctx, x, y, w, h, 0.95);
     drawEmoji(ctx, '💀', G.VW / 2, y + 64, 56);
     ttext(ctx, 'DUTY FAILED', G.VW / 2, y + 130, 36, '#ff6b6b', 'center', TITLE_FONT, 1, 'bold');
-    ttext(ctx, G.boss && G.boss.engaged ? 'Ifrit vẫn đang túc trực...' : 'Eorzea cần bạn thử lại!', G.VW / 2, y + 168, 16, '#c9d2e4');
+    ttext(ctx, G.boss && G.boss.engaged ? (G.boss.def.titan ? 'Titan vẫn đang túc trực...' : 'Ifrit vẫn đang túc trực...') : 'Eorzea cần bạn thử lại!', G.VW / 2, y + 168, 16, '#c9d2e4');
     const bw = 250, bx = x + (w - bw * 2 - 30) / 2;
     this.btn(ctx, bx, y + h - 96, bw, 56, '⚡ Hồi sinh', 'respawn');
     this.btn(ctx, bx + bw + 30, y + h - 96, bw, 56, '🧭 Đổi Job', 'select');
