@@ -14,7 +14,7 @@
 - [x] **Rớt đồ iLvl** theo khu vực (15→60), tự trang bị, badge iLvl, hiển thị ở màn Victory
 - [x] **Tutorial 10 bước** gắn nhiệm vụ: card hướng dẫn, highlight nút, mũi tên chỉ mục tiêu, phần thưởng từng bước
 - [x] Nút Trợ giúp ❓ + bảng legend giải thích toàn bộ marker
-- [x] **Duty 2: The Navel (Titan)** — stagger gauge, counter, heart phase, gaol, earthen fury, AI thích ứng · HP x3 (27k) để test mech · **Seismic Dive** 🌀 (Titan chìm đất, vòng cam bám player nửa cast rồi KHÓA, Titan lao tới điểm khóa) · **Granite Rush** 🎯 mở màn (khóa 1 mục tiêu, lướt qua 3 lần, AoE cả đường đi) · sửa bug telegraph/cổng không trừ camera (AoE vô hình ở arena xa gốc tọa độ)
+- [x] **Duty 2: The Navel (Titan)** — stagger gauge, counter, heart phase, gaol, earthen fury, AI thích ứng · HP x3 (27k) để test mech · **Seismic Dive** 🌀 (Titan chìm đất, vòng cam bám player nửa cast rồi KHÓA, Titan lao tới điểm khóa) · **Granite Rush** 🎯 mở màn (khóa 1 mục tiêu, lướt qua 3 lần, AoE cả đường đi) · nhịp ra đòn dồn 2.7s, Landslide/Cross Slide thành đòn lướt thật, **Rock Slide** lướt 2 lần giữa trận, **Tectonic Stomp** AoE cận thân · sửa bug telegraph/cổng không trừ camera (AoE vô hình ở arena xa gốc tọa độ)
 
 ## ⬜ Combat & Job
 - [ ] **Esuna** — cleanses debuff (cần thêm loại debuff có thể cleanse, ví dụ Burn từ Ifrit)
