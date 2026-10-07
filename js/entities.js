@@ -8,11 +8,11 @@ function makePlayer(jobId) {
     jobId, job, x: MAP.startX, y: MAP.startY, r: 20, face: 0,
     level: 1, xp: 0, alive: true, respawnT: 0, weaknessT: 0,
     hp: 0, maxhp: 0, mp: 0, maxmp: 0, atk: 0, def: 0,
-    gcd: 0, cast: null, combo: null, autoT: 0, spdBuffT: 0,
+    cast: null, chain: null, act: null, spdBuffT: 0,
     buffs: [], skills: job.skills.map(id => ({ def: SKILLS[id], cd: 0 })),
     target: null, lb: 0, pot: 3, kb: { x: 0, y: 0, t: 0 }, dash: null,
-    flashT: 0, hitFxT: 0, castFxT: 0, counterCd: 0,
-    gear: { weaponIlvl: 5, weaponAtk: 2, armorIlvl: 5, armorHp: 20, armorDef: 1 }, stance: null,
+    flashT: 0, hitFxT: 0, counterCd: 0,
+    gear: { weaponIlvl: 5, weaponAtk: 2, armorIlvl: 5, armorHp: 20, armorDef: 1 },
   };
   recalcStats(p, true);
   return p;
@@ -46,6 +46,8 @@ function gainXp(p, n) {
 function playerPotency(p, pot, opts = {}) {
   let critChance = 0.12 + (opts.critBonus || 0);
   const crit = Math.random() < critChance;
+  const ff = getBuff(p, 'firefist'); // Hỏa Hầu Quyền: +sát thương
+  if (ff) pot *= 1 + ff.val;
   let d = pot * p.atk / 60 * rand(0.92, 1.08) * (crit ? 1.5 : 1);
   if (p.weaknessT > 0) d *= 0.8;
   return { dmg: d, crit };
@@ -108,7 +110,7 @@ function addBuff(p, id, icon, dur, val) {
 }
 function playerDie() {
   const p = G.player;
-  p.alive = false; p.cast = null; p.dash = null;
+  p.alive = false; p.cast = null; p.dash = null; p.act = null;
   Snd.sfx('death');
   for (let i = 0; i < 30; i++) addPart(p.x, p.y, rand(-140, 140), rand(-180, 20), choice(['#ff5b5b', '#d9c48f', '#8b93a8']), rand(3, 6), 1.1);
   addText('💀 BẠN ĐÃ BỊ HẠ', p.x, p.y - 60, '#ff5b5b', 24, true);
@@ -125,14 +127,11 @@ function tryUseSkill(p, idx) {
   const s = p.skills[idx];
   if (!s) return false;
   const def = s.def;
-  if (def.gcd && p.gcd > 0.05) return false;
   if (s.cd > 0) return false;
-  // Astral Fire làm Fire tốn MP nhiều hơn
-  const mpCost = def.mp * (def.st === 'AF' && p.stance && p.stance.name === 'AF' ? 1 + 0.45 * (p.stance.stacks - 1) : 1);
-  if (p.mp < mpCost) { G.toasts.push({ txt: '❄ Không đủ MP — dùng Blizzard/mana!', t: 0, tmax: 1.1, color: '#7cc7ff' }); return false; }
-  if (p.cast) return false;
+  if (p.mp < def.mp) { G.toasts.push({ txt: '💧 Không đủ MP!', t: 0, tmax: 1.1, color: '#7cc7ff' }); return false; }
+  if (p.cast || p.dash) return false;
 
-  // mục tiêu
+  // mục tiêu (skill self-cast có range 0 thì không cần)
   let t = p.target && p.target.alive ? p.target : null;
   if (def.range > 0) {
     if (!t || dist(p.x, p.y, t.x, t.y) > def.range + t.r) {
@@ -148,13 +147,17 @@ function tryUseSkill(p, idx) {
     }
   }
   if (t) p.face = ang(p.x, p.y, t.x, t.y);
-  p.mp -= mpCost;
+  p.mp -= def.mp;
   if (G.tut && !G.tut.skip) { G.tut.used.add(def.id); }
-  if (def.gcd) p.gcd = p.job.gcd;
-  if (def.cd) s.cd = def.cd;
+  // đánh thường được buff tốc bởi Hỏa Hầu Quyền
+  s.cd = def.basic && getBuff(p, 'firefist') ? def.cd * (1 - getBuff(p, 'firefist').spd) : def.cd;
   if (def.cast) {
-    p.cast = { def, target: t, t: 0, tmax: def.cast };
-    p.castFxT = 0.1;
+    p.cast = {
+      def, target: t, t: 0, tmax: def.cast,
+      tx: t ? t.x : p.x + Math.cos(p.face) * 120,
+      ty: t ? t.y : p.y + Math.sin(p.face) * 120,
+    };
+    FX.add({ type: 'charge', follow: p, r: 34, color: def.color, tmax: def.cast });
     Snd.sfx('cast');
   } else {
     applySkill(p, def, t);
@@ -165,123 +168,237 @@ function finishCast(p) {
   const c = p.cast; p.cast = null;
   applySkill(p, c.def, (c.target && c.target.alive) ? c.target : null, c.tx, c.ty);
 }
+// chuỗi đòn đánh thường: 1 → 2 → 3 (đòn 3 là kết liễu) → lặp lại
+function basicChain(p) {
+  if (p.chain && p.chain.t > 0) p.chain.n = (p.chain.n % 3) + 1;
+  else p.chain = { n: 1, t: 0 };
+  p.chain.t = 4;
+  return p.chain.n;
+}
 function applySkill(p, def, t, tx, ty) {
-  const comboOk = def.combo && p.combo && p.combo.id === def.combo && p.combo.t > 0;
-  let pot = def.pot * (comboOk ? 1.5 : 1);
   if (t) { tx = t.x; ty = t.y; p.face = ang(p.x, p.y, tx, ty); }
-
-  // ===== Astral Fire / Umbral Ice (BLM) =====
-  if (p.jobId === 'blm' && def.st) {
-    if (def.st === 'AF') {
-      const prev = p.stance && p.stance.name === 'AF' ? p.stance.stacks : 0;
-      p.stance = { name: 'AF', stacks: Math.min(3, prev + 1), t: 18 };
-      if (p.stance.stacks !== prev) addText(`Astral Fire ${p.stance.stacks}!`, p.x, p.y - 66, '#ff9c2b', 15, true);
-    } else {
-      p.stance = { name: 'UI', stacks: 1, t: 18 };
-      addText('Umbral Ice!', p.x, p.y - 66, '#7cc7ff', 15, true);
-    }
-  }
-  if (p.stance) {
-    if (p.stance.name === 'AF' && def.st === 'AF') pot *= 1 + 0.13 * p.stance.stacks;
-    if (p.stance.name === 'UI' && def.id === 'blizzard') pot *= 1.2;
-  }
-
-  // ===== Positional (MNK): đánh sau lưng / hông quái =====
-  if (t && def.pos && !def.proj) {
-    const toMe = ang(t.x, t.y, p.x, p.y);          // hướng từ quái → người chơi
-    const face = t.face || 0;
-    const front = Math.abs(((toMe - face + Math.PI * 3) % TAU) - Math.PI); // 0 = đối diện mặt quái
-    const rear = Math.PI - front;                   // 0 = ngay sau lưng
-    if (def.pos === 'rear' && rear < 1.15) {
-      if (def.id === 'bootshine') { pot *= 1.5; addText('SAU LƯNG — CRIT!', p.x, p.y - 58, '#ffd75e', 14, true); }
-      else { pot *= 1.25; addText('SAU LƯNG +25%', p.x, p.y - 58, '#ffd75e', 13); }
-    } else if (def.pos === 'flank' && rear >= 1.35 && rear < 2.25) {
-      pot *= 1.3; addText('HÔNG +30%!', p.x, p.y - 58, '#ffd75e', 14, true);
-    }
-  }
-  const hitOne = (e, pot2, opts) => {
-    const { dmg, crit } = playerPotency(p, pot2, { critBonus: def.critBonus || (comboOk ? 0.2 : 0), ...opts });
+  const hitOne = (e, pot2) => {
+    const { dmg, crit } = playerPotency(p, pot2);
     dealToEnemy(e, dmg, { crit });
     p.lb = Math.min(100, p.lb + 2.4);
     if (def.stun) e.stunT = Math.max(e.stunT || 0, def.stun);
+    if (def.slow) e.slowT = Math.max(e.slowT || 0, def.slow.dur);
   };
+  // animation tung chiêu trên thân nhân vật
+  const act = (kind, tmax = 0.28) => { p.act = { kind, t: 0, tmax, ang: p.face }; };
 
   switch (def.id) {
-    case 'cure': {
-      const h = Math.round(p.maxhp * def.heal);
-      p.hp = Math.min(p.maxhp, p.hp + h);
-      addText(`+${h}`, p.x, p.y - 54, '#7de08a', 21, true);
-      for (let i = 0; i < 12; i++) addPart(p.x + rand(-18, 18), p.y + rand(0, 20), rand(-20, 20), rand(-90, -40), '#7de08a', rand(2, 4), 0.8);
-      Snd.sfx('heal'); break;
-    }
-    case 'hallowedGround':
-      addBuff(p, 'invuln', '✨', 6, 1);
-      addText('HALLOWED GROUND!', p.x, p.y - 60, '#ffe9a0', 20, true);
-      G.rings.push({ x: p.x, y: p.y, r0: 20, r1: 130, t: 0, tmax: 0.5, color: '#ffe9a0', w: 5 });
-      Snd.sfx('confirm'); break;
-    case 'lucidDreaming': {
-      const m = Math.round(p.maxmp * def.mana);
-      p.mp = Math.min(p.maxmp, p.mp + m);
-      addText(`+${m} MP`, p.x, p.y - 54, '#7cc7ff', 18);
-      Snd.sfx('heal'); break;
-    }
-    case 'manaward':
-      addBuff(p, 'manaward', '🔷', 15, Math.round(p.maxhp * def.shield));
-      addText('MANAWARD', p.x, p.y - 54, '#7cc7ff', 17, true);
-      Snd.sfx('confirm'); break;
-    case 'blizzard': if (t) hitOne(t, pot), p.mp = Math.min(p.maxmp, p.mp + p.maxmp * def.mana); break;
-    case 'aero': case 'thunder': {
+    // ================= PALADIN — THÁNH QUANG =================
+    case 'tramKiem': {
       if (!t) break;
-      hitOne(t, pot);
+      const n = basicChain(p);
+      const finish = n === def.chainEvery;
+      act(finish ? 'kick' : 'slash');
+      hitOne(t, def.pot * (finish ? 1 + def.chainBonus : 1));
+      addSlash(t.x, t.y, p.face + (n === 2 ? 0.45 : -0.4), '#ffe9a0', { r: finish ? 1.7 : 1, arcs: finish ? 2 : 1 });
+      if (finish) {
+        G.rings.push({ x: t.x, y: t.y, r0: 12, r1: 95, t: 0, tmax: 0.35, color: '#ffe9a0', w: 6 });
+        FX.add({ type: 'pillar', x: t.x, y: t.y, color: '#ffe9a0', w: 26, h: 95, tmax: 0.4 });
+        addText('CỘNG HƯỞNG!', p.x, p.y - 60, '#ffe9a0', 15, true);
+        G.cam.shake = Math.max(G.cam.shake, 3);
+      }
+      Snd.sfx('hit');
+      break;
+    }
+    case 'nemKhien': {
+      act('toss', 0.3);
+      addProj({ x: p.x, y: p.y - 6, target: t, tx, ty, spd: 560, icon: '🛡️', size: 24, pot: def.pot, color: def.color, trail: '#ffe9a0', spin: true, skill: def });
+      Snd.sfx('swing');
+      break;
+    }
+    case 'thanhChanh': {
+      if (!t) break;
+      act('kick', 0.4);
+      p.dash = {
+        kind: 'leap', t: 0, dur: 0.3, x0: p.x, y0: p.y, trail: '#ffe9a0',
+        x1: t.x - Math.cos(p.face) * (t.r + 16), y1: t.y - Math.sin(p.face) * (t.r + 16),
+        onLand: () => {
+          FX.add({ type: 'nova', x: p.x, y: p.y, r0: 20, r1: def.aoeSelf + 40, color: '#fff3c4', tmax: 0.45 });
+          for (let i = 0; i < 18; i++) addPart(p.x + rand(-30, 30), p.y + rand(-6, 14), rand(-160, 160), rand(-220, -40), choice(['#ffe9a0', '#fff3c4', '#ffd76a']), rand(2.5, 5.5), 0.6);
+          G.cam.shake = Math.max(G.cam.shake, 7);
+          Snd.sfx('bigboom');
+          for (const e of G.enemies) if (e.alive && dist(p.x, p.y, e.x, e.y) < def.aoeSelf + e.r) hitOne(e, def.pot);
+        },
+      };
+      Snd.sfx('swing');
+      break;
+    }
+    case 'thanhKhien': {
+      addBuff(p, 'invuln', '✨', def.invuln, 1);
+      FX.add({ type: 'dome', follow: p, r: 46, color: '#ffe9a0', tmax: def.invuln });
+      FX.add({ type: 'pillar', x: p.x, y: p.y, color: '#fff3c4', w: 60, h: 150, tmax: 0.6 });
+      G.flash = { color: '#fffbe8', t: 0.25, tmax: 0.25 };
+      G.rings.push({ x: p.x, y: p.y, r0: 20, r1: 150, t: 0, tmax: 0.5, color: '#ffe9a0', w: 5 });
+      addText('THÁNH KHIÊN BẤT DIỆT!', p.x, p.y - 66, '#ffe9a0', 19, true);
+      let nTaunt = 0;
+      for (const e of G.enemies) {
+        if (!e.alive || dist(p.x, p.y, e.x, e.y) > def.tauntAoE + e.r) continue;
+        if (!e.enmity) e.enmity = { player: 0, tank: 0, healer: 0 };
+        e.enmity.player += 2500; e.aggro = true; nTaunt++;
+      }
+      if (nTaunt) addText(`KHIÊU CHIẾN x${nTaunt}`, p.x, p.y - 46, '#ff9c6b', 14, true);
+      Snd.sfx('confirm');
+      break;
+    }
+
+    // ================= WHITE MAGE — THIÊN NHIÊN =================
+    case 'phiThach': {
+      act('cast', 0.25);
+      addProj({ x: p.x, y: p.y - 6, target: t, tx, ty, spd: 600, icon: '🪨', size: 22, pot: def.pot, color: def.color, trail: '#a89880', skill: def });
+      Snd.sfx('cast');
+      break;
+    }
+    case 'cuongPhong': {
+      if (!t) break;
+      act('cast', 0.3);
+      hitOne(t, def.pot);
       const dot = t.dots.find(d => d.name === def.name);
       if (dot) { dot.t = def.dot.dur; dot.total = def.dot.total; }
       else t.dots.push({ name: def.name, icon: def.icon, t: def.dot.dur, total: def.dot.total, color: def.dot.color, tick: 0 });
+      FX.add({ type: 'vortex', follow: t, r: 30, color: '#a8e8b0', tmax: def.dot.dur });
+      Snd.sfx('cast');
       break;
     }
-    case 'holy': {
+    case 'thanhQuang': {
       Snd.sfx('bigboom');
-      G.flash = { color: '#fffbe8', t: 0.28, tmax: 0.28 };
-      G.cam.shake = Math.max(G.cam.shake, 7);
-      G.rings.push({ x: p.x, y: p.y, r0: 30, r1: def.aoeSelf + 30, t: 0, tmax: 0.45, color: '#fff3c4', w: 6 });
-      for (const e of G.enemies) if (e.alive && dist(p.x, p.y, e.x, e.y) < def.aoeSelf + e.r) hitOne(e, pot);
-      for (let i = 0; i < 24; i++) addPart(p.x, p.y, rand(-260, 260), rand(-260, 260), '#fff3c4', rand(2, 5), 0.6);
+      G.flash = { color: '#fffbe8', t: 0.3, tmax: 0.3 };
+      G.cam.shake = Math.max(G.cam.shake, 8);
+      FX.add({ type: 'pillar', x: p.x, y: p.y, color: '#fff3c4', w: 110, h: 220, tmax: 0.7 });
+      FX.add({ type: 'nova', x: p.x, y: p.y, r0: 30, r1: def.aoeSelf + 40, color: '#fff3c4', tmax: 0.5 });
+      for (let i = 0; i < 22; i++) addPart(p.x + rand(-40, 40), p.y + rand(-10, 20), rand(-240, 240), rand(-260, -40), choice(['#fff3c4', '#ffffff', '#ffe9a0']), rand(2.5, 5.5), 0.7);
+      for (const e of G.enemies) if (e.alive && dist(p.x, p.y, e.x, e.y) < def.aoeSelf + e.r) hitOne(e, def.pot);
       break;
     }
-    case 'flare': {
-      if (!t) break;
-      Snd.sfx('bigboom');
-      G.cam.shake = Math.max(G.cam.shake, 10);
-      const r = def.aoeTarget;
-      G.rings.push({ x: tx, y: ty, r0: 20, r1: r + 40, t: 0, tmax: 0.5, color: '#ff9c2b', w: 7 });
-      for (const e of G.enemies) if (e.alive && dist(tx, ty, e.x, e.y) < r + e.r) hitOne(e, pot);
-      for (let i = 0; i < 34; i++) addPart(tx + rand(-30, 30), ty + rand(-30, 30), rand(-300, 300), rand(-320, 160), choice(['#ff9c2b', '#ffd75e', '#ff5b3b']), rand(3, 7), 0.8);
-      break;
-    }
-    case 'shoulderTackle': {
-      if (!t) break;
-      p.dash = { t: 0, dur: 0.18, x0: p.x, y0: p.y, x1: tx - Math.cos(p.face) * (t.r + 12), y1: ty - Math.sin(p.face) * (t.r + 12), target: t, pot };
-      Snd.sfx('swing'); break;
-    }
-    default: {
-      // đòn cận chiến / projectile
-      if (def.proj) {
-        addProj({ x: p.x, y: p.y - 6, target: t, tx, ty, spd: 640, icon: def.icon, size: 26, pot, critBonus: def.critBonus || (comboOk ? 0.2 : 0), color: def.id === 'fire' ? '#ff9c2b' : def.id === 'stone' ? '#c9b8a0' : '#9fd0ff' });
-        Snd.sfx(def.id === 'fire' ? 'fire' : 'cast');
-      } else if (t) {
-        hitOne(t, pot);
-        addSlash(t.x, t.y, p.face, comboOk ? '#ffd75e' : '#ffffff');
-        Snd.sfx('hit');
+    case 'menhThien': {
+      Snd.sfx('heal');
+      for (const m of partyMembers()) {
+        if (!m.alive) continue;
+        const h = Math.round(m.maxhp * def.heal);
+        m.hp = Math.min(m.maxhp, m.hp + h);
+        addText(`+${h}`, m.x, m.y - 54, '#7de08a', m === p ? 21 : 15, m === p);
+        FX.add({ type: 'pillar', x: m.x, y: m.y, color: '#b8f0c0', w: 34, h: 130, tmax: 0.7 });
+        for (let i = 0; i < 10; i++) addPart(m.x + rand(-16, 16), m.y + rand(0, 18), rand(-12, 12), rand(-90, -40), '#7de08a', rand(2, 4), 0.8);
       }
-      // hiệu ứng combo
-      if (def.id === 'riotBlade' && comboOk) { p.mp = Math.min(p.maxmp, p.mp + p.maxmp * 0.12); addText('+MP', p.x, p.y - 44, '#7cc7ff', 14); }
-      if (def.id === 'rageOfHalone' && t && comboOk) { t.atkDebuffT = 10; addText('ATK ↓', t.x, t.y - t.r - 26, '#c8a0ff', 14); }
-      if (def.id === 'snapPunch' && comboOk) p.spdBuffT = 8;
+      // hồi sinh đồng đội gục ngã
+      for (const a of G.allies) {
+        if (a.alive) continue;
+        a.alive = true; a.hp = Math.round(a.maxhp * def.revive); a.deadT = 0;
+        a.x = p.x + rand(-44, 44); a.y = p.y + rand(24, 52);
+        addText(`✨ ${a.def.name} HỒI SINH!`, a.x, a.y - 50, '#b8f0c0', 16, true);
+        FX.add({ type: 'pillar', x: a.x, y: a.y, color: '#d8ffe0', w: 42, h: 170, tmax: 0.9 });
+      }
+      addBuff(p, 'manaward', '🌿', 8, Math.round(p.maxhp * def.shield));
+      addText('MỆNH THIÊN HỘI PHỤC!', p.x, p.y - 70, '#b8f0c0', 19, true);
+      break;
+    }
+
+    // ================= BLACK MAGE — NGUYÊN TỐ =================
+    case 'hoaTien': {
+      act('cast', 0.25);
+      addProj({ x: p.x, y: p.y - 6, target: t, tx, ty, spd: 620, icon: '🔥', size: 24, pot: def.pot, color: def.color, trail: '#ff9c2b', skill: def });
+      Snd.sfx('fire');
+      break;
+    }
+    case 'bangThuat': {
+      if (!t) break;
+      FX.add({ type: 'icestrike', x: t.x, y: t.y, color: '#bfe8ff', tmax: 0.85 });
+      hitOne(t, def.pot);
+      p.mp = Math.min(p.maxmp, p.mp + p.maxmp * def.mana);
+      addText(`+${Math.round(p.maxmp * def.mana)} MP`, p.x, p.y - 54, '#7cc7ff', 15);
+      Snd.sfx('cast');
+      break;
+    }
+    case 'loiPhat': {
+      if (!t) break;
+      FX.add({ type: 'bolt', x: t.x, y: t.y, color: '#ffe066', tmax: 0.4 });
+      G.flash = { color: '#fff6cc', t: 0.12, tmax: 0.12 };
+      G.cam.shake = Math.max(G.cam.shake, 5);
+      hitOne(t, def.pot);
+      const dot = t.dots.find(d => d.name === def.name);
+      if (dot) { dot.t = def.dot.dur; dot.total = def.dot.total; }
+      else t.dots.push({ name: def.name, icon: def.icon, t: def.dot.dur, total: def.dot.total, color: def.dot.color, tick: 0 });
+      Snd.sfx('bigboom');
+      break;
+    }
+    case 'dietTinh': {
+      const r = def.aoeTarget;
+      const ax = t ? t.x : (tx || p.x), ay = t ? t.y : (ty || p.y);
+      Snd.sfx('bigboom');
+      G.flash = { color: '#ffd9a0', t: 0.3, tmax: 0.3 };
+      G.cam.shake = Math.max(G.cam.shake, 12);
+      FX.add({ type: 'nova', x: ax, y: ay, r0: 30, r1: r + 60, color: '#ff9c2b', tmax: 0.6 });
+      FX.add({ type: 'pillar', x: ax, y: ay, color: '#ff9c2b', w: 120, h: 240, tmax: 0.8 });
+      // mưa thiên thạch rơi quanh vùng nổ
+      for (let i = 0; i < 5; i++) {
+        after(0.04 + i * 0.07, () => {
+          addPart(ax + rand(-r, r), ay - 300 - rand(0, 80), rand(-30, 30), rand(340, 480), choice(['#ff6b3b', '#ffd75e']), rand(5, 9), 0.55);
+        });
+      }
+      for (let i = 0; i < 40; i++) addPart(ax + rand(-r / 2, r / 2), ay + rand(-r / 3, r / 3), rand(-300, 300), rand(-360, 80), choice(['#ff9c2b', '#ffd75e', '#ff5b3b']), rand(3, 8), 0.9);
+      for (const e of G.enemies) if (e.alive && dist(ax, ay, e.x, e.y) < r + e.r) hitOne(e, def.pot);
+      break;
+    }
+
+    // ================= MONK — CHÂN KHÍ =================
+    case 'lienHoan': {
+      if (!t) break;
+      const n = basicChain(p);
+      const finish = n === def.chainEvery;
+      act(finish ? 'kick' : 'punch');
+      hitOne(t, def.pot * (finish ? 1 + def.chainBonus : 1));
+      addSlash(t.x, t.y, p.face + (n === 2 ? 0.5 : -0.45), '#ffd9a0', { r: finish ? 1.5 : 0.9 });
+      if (finish) {
+        G.rings.push({ x: t.x, y: t.y, r0: 10, r1: 85, t: 0, tmax: 0.3, color: '#ffb27a', w: 5 });
+        addText('ĐÁ KẾT LIỄU!', p.x, p.y - 58, '#ffb27a', 14, true);
+        G.cam.shake = Math.max(G.cam.shake, 3);
+      }
+      Snd.sfx('hit');
+      break;
+    }
+    case 'cuongQuyen': {
+      if (!t) break;
+      act('punch', 0.32);
+      hitOne(t, def.pot);
+      FX.add({ type: 'nova', x: t.x, y: t.y, r0: 8, r1: 72, color: '#ffb27a', tmax: 0.3 });
+      for (let i = 0; i < 10; i++) addPart(t.x + rand(-14, 14), t.y + rand(-8, 8), rand(-120, 120), rand(-160, -40), '#ffb27a', rand(2, 4.5), 0.45);
+      addText('CHOÁNG!', t.x, t.y - t.r - 24, '#ffd75e', 14, true);
+      Snd.sfx('hit2');
+      break;
+    }
+    case 'hoaHau': {
+      p.buffs.push({ id: 'firefist', icon: '🔥', t: def.buff.dur, val: def.buff.dmg, spd: def.buff.spd });
+      FX.add({ type: 'aura', follow: p, r: 34, color: '#ff7a3d', tmax: def.buff.dur });
+      p.spdBuffT = def.buff.dur;
+      addText('HỎA HẦU QUYỀN!', p.x, p.y - 64, '#ff9c6b', 18, true);
+      G.flash = { color: '#ffb27a', t: 0.18, tmax: 0.18 };
+      G.rings.push({ x: p.x, y: p.y, r0: 16, r1: 90, t: 0, tmax: 0.4, color: '#ff7a3d', w: 5 });
+      Snd.sfx('confirm');
+      break;
+    }
+    case 'phongThan': {
+      if (!t) break;
+      act('kick', 0.4);
+      const a = ang(p.x, p.y, t.x, t.y);
+      const lx = t.x + Math.cos(a) * (t.r + 42), ly = t.y + Math.sin(a) * (t.r + 42);
+      FX.add({ type: 'trail', x: p.x, y: p.y, x1: lx, y1: ly, color: '#ffd9a0', tmax: 0.5, w: 20 });
+      p.dash = {
+        kind: 'through', t: 0, dur: 0.22, x0: p.x, y0: p.y, x1: lx, y1: ly, trail: '#ffd9a0',
+        onLand: () => {
+          for (const e of G.enemies) if (e.alive && dist(p.x, p.y, e.x, e.y) < 110 + e.r) hitOne(e, def.pot);
+          FX.add({ type: 'nova', x: p.x, y: p.y, r0: 12, r1: 115, color: '#ffd75e', tmax: 0.4 });
+          G.cam.shake = Math.max(G.cam.shake, 6);
+          Snd.sfx('bigboom');
+        },
+      };
+      Snd.sfx('swing');
       break;
     }
   }
-  // combo chain
-  if (def.combo) p.combo = { id: def.id, t: 6 };
-  else if (def.gcd && def.range > 0) p.combo = null;
 }
 function tryPotion(p) {
   if (!p.alive || p.pot <= 0 || G.state !== 'duty' || G.paused) return false;
@@ -345,18 +462,17 @@ function tryCounter(p) {
 
 function updatePlayer(p, dt) {
   if (!p.alive) return;
-  p.gcd = Math.max(0, p.gcd - dt);
-  p.autoT -= dt; p.weaknessT = Math.max(0, p.weaknessT - dt);
+  p.weaknessT = Math.max(0, p.weaknessT - dt);
   p.spdBuffT = Math.max(0, p.spdBuffT - dt);
   p.stunT = Math.max(0, (p.stunT || 0) - dt);
-  p.flashT = Math.max(0, p.flashT - dt); p.hitFxT = Math.max(0, p.hitFxT - dt); p.castFxT = Math.max(0, p.castFxT - dt);
+  p.flashT = Math.max(0, p.flashT - dt); p.hitFxT = Math.max(0, p.hitFxT - dt);
+  if (p.act) { p.act.t += dt; if (p.act.t >= p.act.tmax) p.act = null; }
   p.counterCd = Math.max(0, p.counterCd - dt);
-  p.mp = Math.min(p.maxmp, p.mp + (p.stance && p.stance.name === 'UI' ? 16 : 7) * dt);
-  if (p.stance) { p.stance.t -= dt; if (p.stance.t <= 0) p.stance = null; }
+  p.mp = Math.min(p.maxmp, p.mp + 7 * dt);
   for (const s of p.skills) s.cd = Math.max(0, s.cd - dt);
   for (const b of p.buffs) b.t -= dt;
   p.buffs = p.buffs.filter(b => b.t > 0);
-  if (p.combo) { p.combo.t -= dt; if (p.combo.t <= 0) p.combo = null; }
+  if (p.chain) { p.chain.t -= dt; if (p.chain.t <= 0) p.chain = null; }
   if (p.target && !p.target.alive) retarget(p);
 
   // cast
@@ -364,24 +480,17 @@ function updatePlayer(p, dt) {
     p.cast.t += dt;
     if (p.cast.t >= p.cast.tmax) finishCast(p);
   }
-  // dash (Shoulder Tackle)
+  // dash / leap (Thánh Chánh Trảm, Phong Thần Cước)
   if (p.dash) {
     p.dash.t += dt;
     const k = clamp(p.dash.t / p.dash.dur, 0, 1);
     p.x = lerp(p.dash.x0, p.dash.x1, easeOut(k));
     p.y = lerp(p.dash.y0, p.dash.y1, easeOut(k));
-    addPart(p.x, p.y, rand(-20, 20), rand(-20, 20), '#cfe8ff', 3, 0.3);
+    addPart(p.x, p.y - 4, rand(-16, 16), rand(-16, 16), p.dash.trail || '#cfe8ff', rand(2, 3.5), 0.3);
     if (k >= 1) {
-      const t = p.dash.target;
-      if (t && t.alive) {
-        const { dmg, crit } = playerPotency(p, p.dash.pot);
-        dealToEnemy(t, dmg, { crit });
-        t.stunT = Math.max(t.stunT || 0, 1.5);
-        addSlash(t.x, t.y, p.face, '#cfe8ff');
-        p.lb = Math.min(100, p.lb + 3);
-        Snd.sfx('hit');
-      }
+      const cb = p.dash.onLand;
       p.dash = null;
+      if (cb) cb();
     }
   } else {
     // di chuyển
@@ -401,20 +510,6 @@ function updatePlayer(p, dt) {
   }
   collideWorld(p);
   applyGates(p);
-
-  // auto attack
-  if (p.job.auto && p.target && p.target.alive && !p.cast) {
-    const t = p.target;
-    if (dist(p.x, p.y, t.x, t.y) < p.job.autoRange + t.r && p.autoT <= 0) {
-      p.autoT = 2.8;
-      p.face = ang(p.x, p.y, t.x, t.y);
-      const { dmg, crit } = playerPotency(p, 90);
-      dealToEnemy(t, dmg, { auto: true, crit });
-      addSlash(t.x, t.y, p.face, '#e8e8e8');
-      p.lb = Math.min(100, p.lb + 1.2);
-      Snd.sfx('swing');
-    }
-  }
 }
 function retarget(p) {
   let best = null, bd = 520 * 520;
@@ -492,6 +587,7 @@ function updateEnemies(dt) {
     e.flashT = Math.max(0, e.flashT - dt);
     e.lungeT = Math.max(0, e.lungeT - dt);
     e.atkDebuffT = Math.max(0, e.atkDebuffT - dt);
+    e.slowT = Math.max(0, (e.slowT || 0) - dt);
     if (e.stunT > 0) { e.stunT -= dt; continue; }
     // DoT
     for (const d of e.dots) {
@@ -597,8 +693,9 @@ function updateEnemies(dt) {
   G.enemies = G.enemies.filter(e => e.alive || e.fadeT === undefined ? true : false);
 }
 function moveEnemy(e, a, spd, dt) {
-  e.x += Math.cos(a) * spd * dt;
-  e.y += Math.sin(a) * spd * dt;
+  const s = spd * ((e.slowT || 0) > 0 ? 0.8 : 1); // Băng Thuật làm chậm
+  e.x += Math.cos(a) * s * dt;
+  e.y += Math.sin(a) * s * dt;
   e.face = a;
 }
 
@@ -708,7 +805,7 @@ function engageBoss(e) {
     G.cam.shake = 12;
   }
   G.toasts.push(e.def.titan
-    ? { txt: 'Đòn có viền XANH → bấm 🛡 COUNTER (phím 6) để chặn!', t: 0, tmax: 3, color: '#9fe8ff' }
+    ? { txt: 'Đòn có viền XANH → bấm 🛡 COUNTER (phím C) để chặn!', t: 0, tmax: 3, color: '#9fe8ff' }
     : { txt: 'Nếu Infernal Nail xuất hiện → PHÁ HỦY NGAY!', t: 0, tmax: 3, color: '#ff9c6b' });
   Snd.sfx('warn');
 }
@@ -1267,11 +1364,15 @@ function addProj(pr) {
 function updateProjs(dt) {
   for (const pr of G.projs) {
     pr.t += dt;
-    const homing = pr.enemyProj ? ((pr.target && pr.target.alive) ? pr.target : null) : (pr.target && pr.target.alive ? pr.target : null);
+    const homing = (pr.target && pr.target.alive !== false && pr.target.hp !== 0) ? pr.target : null;
     if (homing) { pr.tx = homing.x; pr.ty = homing.y; }
     const d = dist(pr.x, pr.y, pr.tx, pr.ty);
     if (d < 24) {
       pr.done = true;
+      if (pr.visual) { // đạn chỉ để đẹp (khiên bay về tay)
+        for (let i = 0; i < 6; i++) addPart(pr.x, pr.y, rand(-60, 60), rand(-60, 60), pr.color, 2.5, 0.3);
+        continue;
+      }
       if (pr.enemyProj) {
         const t = (pr.target && pr.target.alive) ? pr.target : null;
         if (t && dist(pr.x, pr.y, t.x, t.y) < t.r + 26) hitMember(t, pr.flatDmg, 'Fireball');
@@ -1283,9 +1384,18 @@ function updateProjs(dt) {
           const { dmg, crit } = playerPotency(p, pr.pot, { critBonus: pr.critBonus });
           dealToEnemy(t, dmg, { crit });
           p.lb = Math.min(100, p.lb + 2.4);
+          if (pr.skill && pr.skill.taunt) { // Ném Khiên: kéo thù hận
+            if (!t.enmity) t.enmity = { player: 0, tank: 0, healer: 0 };
+            t.enmity.player += 1200;
+            addText('THÙ HẬN ↑', t.x, t.y - t.r - 26, '#ffd76a', 13);
+            // khiên bay ngược về tay
+            addProj({ x: pr.x, y: pr.y, target: p, tx: p.x, ty: p.y, spd: 640, icon: '🛡️', size: 20, spin: true, visual: true, color: '#ffd76a', trail: '#ffe9a0' });
+          }
           addSlash(t.x, t.y, ang(pr.x, pr.y, t.x, t.y), pr.color);
         }
-        for (let i = 0; i < 8; i++) addPart(pr.x, pr.y, rand(-100, 100), rand(-100, 100), pr.color, 3, 0.4);
+        // vụ nổ khi trúng
+        addBurst(pr.x, pr.y, pr.color, 10, 150);
+        G.rings.push({ x: pr.x, y: pr.y, r0: 6, r1: 46, t: 0, tmax: 0.25, color: pr.color, w: 3.5 });
         Snd.sfx(pr.icon === '🔥' ? 'fire' : 'hit');
       }
       continue;
@@ -1294,6 +1404,8 @@ function updateProjs(dt) {
     pr.x += Math.cos(a) * pr.spd * dt;
     pr.y += Math.sin(a) * pr.spd * dt;
     pr.ang = a;
+    // vệt hạt nguyên tố theo đầu đạn
+    if (pr.trail && Math.random() < 0.75) addPart(pr.x, pr.y, rand(-14, 14), rand(-14, 14), pr.trail, rand(1.5, 3.2), 0.28);
     if (pr.t > 4) pr.done = true;
   }
   G.projs = G.projs.filter(p => !p.done);
@@ -1301,12 +1413,14 @@ function updateProjs(dt) {
 function drawProjs(ctx) {
   for (const pr of G.projs) {
     ctx.save();
-    ctx.translate(pr.x, pr.y);
-    if (pr.ang !== undefined) ctx.rotate(pr.ang);
-    // đuôi lửa
-    ctx.globalAlpha = 0.5;
-    drawEmoji(ctx, '▪', -18, 0, 14);
+    // quầng sáng nguyên tố
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = pr.color || '#fff';
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, pr.size * 0.62, 0, TAU); ctx.fill();
     ctx.globalAlpha = 1;
+    ctx.translate(pr.x, pr.y);
+    if (pr.spin) ctx.rotate(G.t * 14);
+    else if (pr.ang !== undefined) ctx.rotate(pr.ang);
     drawEmoji(ctx, pr.icon, 0, 0, pr.size);
     ctx.restore();
   }
@@ -1328,14 +1442,15 @@ function rockBurst(x, y, n = 10, spd = 170) { // mảnh đá văng — palette �
     addPart(x, y, Math.cos(a) * s, Math.sin(a) * s - 90, choice(['#8a7458', '#c9b896', '#6e5c44', '#a08a6a']), rand(3, 7), rand(0.5, 0.9));
   }
 }
-function addSlash(x, y, a, color) {
-  G.slashes.push({ x, y, a, t: 0, tmax: 0.18, color });
+function addSlash(x, y, a, color, opts = {}) {
+  G.slashes.push({ x, y, a, t: 0, tmax: 0.18, color, r: opts.r || 1, arcs: opts.arcs || 1 });
 }
 function addText(txt, x, y, color, size, big = false) {
   if (G.texts.length > 60) G.texts.shift();
   G.texts.push({ txt, x, y, color, size, t: 0, tmax: big ? 1.3 : 1, vy: big ? -46 : -34 });
 }
 function updateParts(dt) {
+  if (typeof FX !== 'undefined') FX.update(dt);
   for (const p of G.parts) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 140 * dt; }
   G.parts = G.parts.filter(p => p.t < p.tmax);
   for (const s of G.slashes) s.t += dt;
@@ -1357,9 +1472,12 @@ function drawParts(ctx) {
     const k = s.t / s.tmax;
     ctx.save();
     ctx.translate(s.x, s.y); ctx.rotate(s.a);
-    ctx.strokeStyle = s.color; ctx.lineWidth = 4 * (1 - k) + 1;
+    ctx.strokeStyle = s.color; ctx.lineWidth = (4 * (1 - k) + 1) * s.r;
     ctx.globalAlpha = 1 - k;
-    ctx.beginPath(); ctx.arc(0, 0, 20 + 26 * k, -0.7, 0.7); ctx.stroke();
+    for (let i = 0; i < s.arcs; i++) {
+      const off = i * 0.5 - (s.arcs - 1) * 0.25;
+      ctx.beginPath(); ctx.arc(0, 0, (20 + 26 * k) * s.r, -0.7 + off, 0.7 + off); ctx.stroke();
+    }
     ctx.restore();
   }
   ctx.globalAlpha = 1;

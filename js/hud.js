@@ -15,7 +15,7 @@ const HUD = {
   layout() {
     const s = G.smallUI ? 1.2 : 1;
     const T = (x, y, r) => ({ x: G.VW + (x - 1280) * s, y: G.VH + (y - 720) * s, r: r * s });
-    this.skillBtns = [T(1152, 588, 50), T(1052, 648, 44), T(1052, 522, 44), T(952, 590, 42), T(958, 478, 40)];
+    this.skillBtns = [T(1160, 590, 52), T(1058, 650, 46), T(1058, 524, 46), T(952, 588, 44)]; // Q, E, R, F
     this.lbBtn = T(852, 548, 38);
     this.counterBtn = T(866, 460, 38);
     this.potBtn = T(1206, 452, 30);
@@ -154,12 +154,18 @@ const HUD = {
       ctx.fillStyle = rc; ctx.fill();
       ttext(ctx, ROLE_VN[j.role], x + cw / 2, y + 184 * k, 13, '#0a0e1a', 'center', UI_FONT, 1, 'bold');
       ttext(ctx, j.vn, x + cw / 2, y + 214 * k, 15, GOLD);
+      // chip hệ phái
+      const hp = j.hePhai, hw = cw - 56;
+      roundRect(ctx, x + cw / 2 - hw / 2, y + 230 * k, hw, 24 * k, 12 * k);
+      ctx.globalAlpha = 0.16; ctx.fillStyle = hp.color; ctx.fill();
+      ctx.globalAlpha = 1; ctx.strokeStyle = hp.color; ctx.lineWidth = 1.5; ctx.stroke();
+      ttext(ctx, `${hp.icon} HỆ ${hp.name.toUpperCase()}`, x + cw / 2, y + 242 * k, 12, hp.color, 'center', UI_FONT, 1, 'bold');
       // mô tả
-      wrapText(ctx, j.desc, x + cw / 2, y + 238 * k, cw - 30, 17, '#c9d2e4');
+      wrapText(ctx, j.desc, x + cw / 2, y + 266 * k, cw - 30, 17, '#c9d2e4');
       // stat bars
       const stats = [['HP', j.hp / 900], ['ATK', j.atk / 38], ['DEF', j.def / 15]];
       stats.forEach(([nm, kk], si) => {
-        const sy = y + 296 * k + si * 26 * k;
+        const sy = y + 316 * k + si * 26 * k;
         ttext(ctx, nm, x + 30, sy + 7, 13, '#8b93a8', 'left');
         this.bar(ctx, x + 68, sy, cw - 100, 13, kk, nm === 'HP' ? '#5dd39e' : nm === 'ATK' ? '#e08b3f' : '#7cc7ff');
       });
@@ -177,7 +183,7 @@ const HUD = {
     ttext(ctx, ok ? `⚔ XUẤT CHINH — ${JOBS[G.selJob].name}` : 'Chọn một job bên trên', cx, by + 30, 22, ok ? '#fff' : '#8b93a8', 'center', UI_FONT, 1, 'bold');
     if (ok) this.zone('confirm', bx, by, bw, 58);
     ttext(ctx, 'Điều khiển: joystick trái • nút skill phải • chạm quái để chọn mục tiêu', cx, G.smallUI ? G.VH - 14 : 668, 15, 'rgba(139,147,168,0.85)');
-    if (!G.smallUI) ttext(ctx, 'Desktop: WASD di chuyển • chuột chọn mục tiêu • 1-5 skill • Q thuốc • R Limit Break', cx, 692, 14, 'rgba(139,147,168,0.6)');
+    if (!G.smallUI) ttext(ctx, 'Desktop: WASD di chuyển • chuột chọn mục tiêu • Q đánh thường • E/R/F kỹ năng hệ phái • Z thuốc • C counter • X Limit Break', cx, 692, 14, 'rgba(139,147,168,0.6)');
   },
 
   // ================= HỘP THOẠI =================
@@ -217,7 +223,7 @@ const HUD = {
     ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke();
     drawEmoji(ctx, p.job.icon, fx + 34, fy + 32, 27, 1, p.job.id.toUpperCase());
     ttext(ctx, `Bạn  ·  Lv ${p.level}`, fx + 66, fy + 15, 14, '#e8ecf5', 'left', UI_FONT, 1, 'bold');
-    ttext(ctx, p.job.name, fx + 66 + 118, fy + 15, 13, ROLE_COLORS[p.job.role], 'left');
+    ttext(ctx, `${p.job.hePhai.icon} ${p.job.hePhai.name}`, fx + 66 + 118, fy + 15, 13, p.job.hePhai.color, 'left');
     ttext(ctx, `i${p.gear.weaponIlvl}`, fx + fw - 10, fy + 15, 12, GOLD, 'right', UI_FONT, 1, 'bold');
     this.bar(ctx, fx + 66, fy + 25, 236, 15, p.hp / p.maxhp, '#5dd39e');
     ttext(ctx, `${Math.ceil(p.hp)} / ${p.maxhp}`, fx + 66 + 118, fy + 33, 11, '#0a0e1a', 'center', UI_FONT, 1, 'bold');
@@ -226,9 +232,8 @@ const HUD = {
     // LB gauge
     this.bar(ctx, fx + 66, fy + 56, 236, 9, p.lb / 100, p.lb >= 100 ? `hsl(${(G.t * 200) % 360},85%,60%)` : '#d9c48f');
     ttext(ctx, 'LB', fx + 50, fy + 61, 10, GOLD, 'right');
-    // buff icons (kèm stance AF/UI của BLM)
+    // buff icons
     const buffIcons = [];
-    if (p.stance) buffIcons.push({ icon: p.stance.name === 'AF' ? '🔥' : '❄️', t: p.stance.t, label: String(p.stance.stacks) });
     for (const b of p.buffs) buffIcons.push({ icon: b.icon, t: b.t });
     buffIcons.forEach((b, i) => {
       const bx = fx + 66 + i * 32, by = fy + 70;
@@ -339,7 +344,7 @@ const HUD = {
       ctx.strokeStyle = `rgba(110,231,255,${pl})`; ctx.lineWidth = 3; ctx.stroke();
       ctx.globalAlpha = 1;
       drawEmoji(ctx, '🛡️', x2 + 36, y2 + 27, 30, pl);
-      ttext(ctx, near ? `BẤM [6] ĐỂ COUNTER — còn ${left.toFixed(1)}s!` : `LẠI GẦN TITAN ĐỂ COUNTER — ${left.toFixed(1)}s`, x2 + w2 / 2 + 14, y2 + 22, 17, near ? '#bff2ff' : '#ffd75e', 'center', UI_FONT, pl, 'bold');
+      ttext(ctx, near ? `BẤM [C] ĐỂ COUNTER — còn ${left.toFixed(1)}s!` : `LẠI GẦN TITAN ĐỂ COUNTER — ${left.toFixed(1)}s`, x2 + w2 / 2 + 14, y2 + 22, 17, near ? '#bff2ff' : '#ffd75e', 'center', UI_FONT, pl, 'bold');
       this.bar(ctx, x2 + 30, y2 + 38, w2 - 60, 8, left / c.tmax, left < 1 ? '#ff9c6b' : '#6ee7ff');
     }
 
@@ -427,20 +432,17 @@ const HUD = {
   },
 
   drawSkillButtons(ctx, p) {
-    const gcdFrac = p.gcd / p.job.gcd;
+    // 4 nút: Q đánh thường + E/R/F kỹ năng hệ phái
     p.skills.forEach((s, i) => {
       const b = this.skillBtns[i];
       const def = s.def;
-      const isNextCombo = def.combo && p.combo && p.combo.id === def.combo && p.combo.t > 0;
-      const cdFrac = s.cd > 0 && def.cd ? s.cd / def.cd : 0;
-      const canUse = (def.gcd ? p.gcd <= 0.05 : true) && s.cd <= 0 && p.mp >= def.mp;
+      const cdFrac = def.cd ? clamp(s.cd / def.cd, 0, 1) : 0;
+      const canUse = s.cd <= 0.05 && p.mp >= def.mp && !p.cast && !p.dash;
+      // đòn đánh thường sắp tới là đòn kết liễu → phát sáng báo hiệu
+      const finisherNext = def.basic && p.chain && p.chain.t > 0 && p.chain.n >= (def.chainEvery || 3) - 1;
       ctx.save();
       ctx.translate(b.x, b.y);
-      // glow combo
-      if (isNextCombo) {
-        ctx.shadowColor = '#ffd75e'; ctx.shadowBlur = 22 + 8 * Math.sin(G.t * 7);
-      }
-      // nền
+      if (finisherNext) { ctx.shadowColor = def.color; ctx.shadowBlur = 20 + 8 * Math.sin(G.t * 7); }
       ctx.beginPath(); ctx.arc(0, 0, b.r, 0, TAU);
       const g = ctx.createRadialGradient(0, -b.r * 0.4, 4, 0, 0, b.r);
       g.addColorStop(0, canUse ? '#2c3a66' : '#1c2238');
@@ -448,18 +450,17 @@ const HUD = {
       ctx.fillStyle = g; ctx.fill();
       ctx.shadowBlur = 0;
       ctx.lineWidth = 3;
-      ctx.strokeStyle = canUse ? (def.gcd ? GOLD : '#b08fe0') : 'rgba(110,120,150,0.35)';
+      ctx.strokeStyle = canUse ? def.color : 'rgba(110,120,150,0.35)';
       ctx.stroke();
       drawEmoji(ctx, def.icon, 0, -2, b.r * 0.92, 1, def.name);
-      // GCD quét
-      if (def.gcd && gcdFrac > 0) cdPie(ctx, 0, 0, b.r, gcdFrac * 0.55 + 0.0);
       // cooldown riêng
       if (cdFrac > 0) {
         cdPie(ctx, 0, 0, b.r, cdFrac);
         ttext(ctx, s.cd > 1 ? Math.ceil(s.cd) : s.cd.toFixed(1), 0, 0, 17, '#fff', 'center', UI_FONT, 1, 'bold');
       }
-      // số phím tắt
-      ttext(ctx, `${i + 1}`, -b.r + 13, -b.r + 13, 12, 'rgba(232,236,245,0.65)', 'center');
+      // nhãn phím + giá MP
+      ttext(ctx, def.key, -b.r + 13, -b.r + 13, 13, canUse ? '#ffe9a0' : 'rgba(232,236,245,0.55)', 'center', UI_FONT, 1, 'bold');
+      if (def.mp > 0) ttext(ctx, `${def.mp}`, b.r - 11, b.r - 11, 10, '#7cc7ff', 'center', UI_FONT, 1, 'bold');
       ctx.restore();
       // nhãn tên nhỏ
       if (i === 0 && G.hintT > 0) ttext(ctx, def.name, b.x, b.y + b.r + 14, 12, `rgba(232,236,245,${Math.min(1, G.hintT)})`);
@@ -504,7 +505,7 @@ const HUD = {
       ttext(ctx, p.counterCd > 1 ? Math.ceil(p.counterCd) : p.counterCd.toFixed(1), 0, 0, 17, '#fff', 'center', UI_FONT, 1, 'bold');
     }
     ctx.restore();
-    ttext(ctx, '6', cb.x - cb.r + 13, cb.y - cb.r + 13, 12, 'rgba(232,236,245,0.65)', 'center');
+    ttext(ctx, 'C', cb.x - cb.r + 13, cb.y - cb.r + 13, 12, 'rgba(232,236,245,0.65)', 'center');
   },
 
   // ================= HƯỚNG DẪN NGƯỜI MỚI =================
@@ -572,16 +573,17 @@ const HUD = {
     this.panel(ctx, x, y, w, h, 0.97);
     ttext(ctx, '❓ TRỢ GIÚP — CÁC KÝ HIỆU TRONG GAME', x + w / 2, y + 40, 24, GOLD, 'center', TITLE_FONT, 1, 'bold');
     const rows = [
+      ['☯', 'Hệ phái', 'Mỗi hero 1 hệ riêng: Q đánh thường · E/R/F kỹ năng hệ phái'],
       ['🟠', 'Vòng CAM đổ đầy', 'AoE sắp nổ — CHẠY RA NGOÀI trước khi đầy'],
       ['💥', 'Marker STACK', 'Cả nhóm đứng CHUNG một chỗ để chia sát thương'],
       ['🔵', 'Marker SPREAD', 'Ngược lại: mỗi người TẢN RA một hướng'],
       ['🔻', 'Marker TANK BUSTER', 'Đòn cực nặng vào tank — người khác tránh xa'],
-      ['👁️', 'GAZE (con mắt)', 'QUAY MẮT ĐI khỏi boss trước khi cast xong'],
+      ['👁️', 'GAZE (con mắt)', 'QUAY MẶT ĐI khỏi boss trước khi cast xong'],
       ['🔥', 'Infernal Nail', 'Phá hủy NGAY trước khi đồng hồ cháy hết'],
       ['🪓🌸', 'NPC đồng đội', 'Thancred giữ aggro, Alisaie hồi máu — hãy đứng gần'],
-      ['🌈', 'Limit Break', 'Đầy 100% thì bấm — chiêu cuối cực mạnh'],
+      ['🌈', 'Limit Break (phím X)', 'Đầy 100% thì bấm — chiêu cuối cực mạnh'],
       ['⚡', 'STAGGER (thanh vàng)', 'Đánh liên tục để làm đầy — đầy 100 Titan CHOÁNG, nhận thêm damage'],
-      ['🛡️', 'COUNTER (nút 6)', 'Đòn cast XANH: lại gần bấm 🛡 đúng lúc để PARRY — không thì cả team ăn 80% HP'],
+      ['🛡️', 'COUNTER (nút 🛡 / phím C)', 'Đòn cast XANH: lại gần bấm 🛡 đúng lúc để PARRY — không thì cả team ăn 80% HP'],
       ['💠', 'Heart of Stone', 'Phá trong 12s khi xuất hiện — fail là WIPE cả team'],
       ['🪨', 'Granite Gaol', 'Cũi đá giam 1 người — PHÁ CÙI trong 10s nếu không người đó chết'],
       ['🌋', 'Earthen Fury', '3 đợt quét sân — chỉ góc XANH an toàn, đứng sai 1 lần là wipe'],
@@ -589,12 +591,12 @@ const HUD = {
       ['🎯', 'Granite Rush (mở màn)', 'Đầu trận Titan khóa 1 người 🔴 rồi lướt qua 3 lần — ai trên đường lướt bị hất, tránh khỏi đường'],
     ];
     rows.forEach((r, i) => {
-      const ry = y + 62 + i * 28;
+      const ry = y + 60 + i * 26;
       drawEmoji(ctx, r[0], x + 56, ry, 20);
       ttext(ctx, r[1], x + 96, ry - 7, 14, '#ffd9a0', 'left', UI_FONT, 1, 'bold');
       ttext(ctx, r[2], x + 96, ry + 10, 12, '#c9d2e4', 'left');
     });
-    ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · 1-6/Q/R trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
+    ttext(ctx, 'Điều khiển: joystick trái · nút skill phải · chạm quái để target · Q/E/R/F + Z/C/X trên desktop', x + w / 2, y + h - 58, 14, '#8b93a8', 'center');
     this.btn(ctx, x + w / 2 - 90, y + h - 44, 180, 32, 'Đã hiểu ✔', 'help-close');
   },
 

@@ -219,6 +219,7 @@ const World = {
     drawPickups(ctx);
     drawProjs(ctx);
     drawParts(ctx);
+    FX.drawAir(ctx);
     drawTexts(ctx);
     ctx.restore();
   },
@@ -236,45 +237,63 @@ const World = {
     drawEmoji(ctx, '❗', n.x + 20, n.y - 26 + Math.sin(G.t * 2.5) * 3, 15, b);
   },
   drawPlayer(ctx, p) {
+    // ----- animation tung chiêu: lao về mục tiêu / nhún người / nhảy -----
+    let ax = 0, ay = 0, lift = 0, sc = 1;
+    if (p.act) {
+      const k = clamp(p.act.t / p.act.tmax, 0, 1);
+      const pulse = Math.sin(Math.PI * k);
+      const d = { slash: 15, punch: 13, kick: 26, toss: -9, cast: 5 }[p.act.kind] || 10;
+      ax = Math.cos(p.act.ang) * d * pulse;
+      ay = Math.sin(p.act.ang) * d * pulse;
+      if (p.act.kind === 'kick') { ay -= 10 * pulse; sc = 1 + 0.06 * pulse; }
+      if (p.act.kind === 'cast') sc = 1 + 0.08 * pulse;
+    }
+    if (p.dash && p.dash.kind === 'leap') {
+      lift = Math.sin(Math.PI * clamp(p.dash.t / p.dash.dur, 0, 1)) * 46;
+    }
+    const bx = p.x + ax, by = p.y + ay - lift;
+    this.drawShadow(ctx, p.x, p.y, p.r * (1 - lift / 180));
     // vòng chỉ mục tiêu của ta
-    this.drawShadow(ctx, p.x, p.y, p.r);
     ctx.strokeStyle = 'rgba(159,208,255,0.7)'; ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r * 0.45, p.r * 1.15, p.r * 0.45, 0, 0, TAU); ctx.stroke();
-    // khiên manaward / hallowed
+    // khiên manaward / invuln
     const inv = getBuff(p, 'invuln'), mw = getBuff(p, 'manaward');
     if (inv || mw) {
       ctx.strokeStyle = inv ? `rgba(255,233,160,${0.6 + 0.3 * Math.sin(G.t * 8)})` : 'rgba(124,199,255,0.55)';
       ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(p.x, p.y - 4, p.r + 12, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx, by - 4, p.r + 12, 0, TAU); ctx.stroke();
     }
-    // thân: vòng màu role + emoji
+    // thân: vòng màu role + emoji (scale khi tung chiêu)
     const rc = ROLE_COLORS[p.job.role];
-    const g = ctx.createRadialGradient(p.x - 5, p.y - 12, 3, p.x, p.y - 4, p.r + 4);
+    ctx.save();
+    if (sc !== 1) { ctx.translate(bx, by - 4); ctx.scale(sc, sc); ctx.translate(-bx, -(by - 4)); }
+    const g = ctx.createRadialGradient(bx - 5, by - 12, 3, bx, by - 4, p.r + 4);
     g.addColorStop(0, '#e8ecf5'); g.addColorStop(1, rc);
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(p.x, p.y - 4, p.r, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx, by - 4, p.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(20,25,40,0.65)'; ctx.lineWidth = 2; ctx.stroke();
-    drawEmoji(ctx, p.job.icon, p.x, p.y - 4, p.r * 1.35, 1, p.job.id.toUpperCase());
+    drawEmoji(ctx, p.job.icon, bx, by - 4, p.r * 1.35, 1, p.job.id.toUpperCase());
     if (p.hitFxT > 0) {
       ctx.globalAlpha = p.hitFxT * 3;
       ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(p.x, p.y - 4, p.r, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx, by - 4, p.r, 0, TAU); ctx.fill();
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
     // hướng nhìn
-    const fx = p.x + Math.cos(p.face) * (p.r + 8), fy = p.y - 4 + Math.sin(p.face) * (p.r + 8);
+    const fx = bx + Math.cos(p.face) * (p.r + 8), fy = by - 4 + Math.sin(p.face) * (p.r + 8);
     ctx.fillStyle = 'rgba(255,255,255,0.8)';
     ctx.beginPath(); ctx.arc(fx, fy, 3, 0, TAU); ctx.fill();
     // thanh cast của mình
     if (p.cast) {
       const w = 64, k = p.cast.t / p.cast.tmax;
       ctx.fillStyle = 'rgba(10,14,26,0.8)';
-      ctx.fillRect(p.x - w / 2, p.y - 52, w, 8);
+      ctx.fillRect(bx - w / 2, by - 52 - lift, w, 8);
       ctx.fillStyle = '#ffd75e';
-      ctx.fillRect(p.x - w / 2 + 1, p.y - 51, (w - 2) * k, 6);
+      ctx.fillRect(bx - w / 2 + 1, by - 51 - lift, (w - 2) * k, 6);
     }
     // debuff weakness
-    if (p.weaknessT > 0) drawEmoji(ctx, '💧', p.x - 26, p.y - 40, 16, 0.9);
+    if (p.weaknessT > 0) drawEmoji(ctx, '💧', bx - 26, by - 40, 16, 0.9);
   },
   drawEnemy(ctx, e) {
     const targeted = (G.player.target === e);
@@ -331,6 +350,8 @@ const World = {
     }
     // dot icon
     if (e.dots.length) drawEmoji(ctx, e.dots[0].icon, e.x + e.r + 8, e.y - e.r - 8, 13);
+    // bị làm chậm (Băng Thuật)
+    if ((e.slowT || 0) > 0) drawEmoji(ctx, '❄️', e.x - e.r - 10, e.y - e.r - 8, 13);
   },
   drawAlly(ctx, a) {
     this.drawShadow(ctx, a.x, a.y, a.r);
@@ -545,7 +566,7 @@ const World = {
       ctx.fillStyle = e.cast.color || '#ffd75e';
       ctx.fillRect(e.x - w / 2 + 1.5, e.y - e.r - 48.5, (w - 3) * clamp(k, 0, 1), 9);
       const castCol = e.cast.counterable ? '#9fe8ff' : '#ffd9a0';
-      ttext(ctx, `${e.cast.counterable ? '🛡 ' : ''}${e.cast.name}${e.cast.counterable ? ' — BẤM 6!' : ''}`, e.x, e.y - e.r - 64, 16, castCol, 'center', UI_FONT, 0.95, 'bold');
+      ttext(ctx, `${e.cast.counterable ? '🛡 ' : ''}${e.cast.name}${e.cast.counterable ? ' — BẤM C!' : ''}`, e.x, e.y - e.r - 64, 16, castCol, 'center', UI_FONT, 0.95, 'bold');
     }
   },
 

@@ -5,57 +5,141 @@ const ROLE_VN = { TANK: 'TANK', HEALER: 'HEALER', MELEE: 'DPS CẬN CHIẾN', CA
 const GOLD = '#d9c48f';
 
 // pot = potency (sức mạnh), dmg = pot * atk / 60
+// Bộ kỹ năng: mỗi hero 1 chiêu ĐÁNH THƯỜNG (Q) + 3 KỸ NĂNG HỆ PHÁI (E / R / F)
 const SKILLS = {
-  // --- Paladin ---
-  fastBlade:      { id: 'fastBlade', name: 'Fast Blade', icon: '⚔️', pot: 200, range: 135, mp: 0, gcd: true, desc: 'Mở đầu combo trăm' },
-  riotBlade:      { id: 'riotBlade', name: 'Riot Blade', icon: '🗡️', pot: 260, range: 135, mp: 0, gcd: true, combo: 'fastBlade', desc: 'Combo 2 — hồi MP' },
-  rageOfHalone:   { id: 'rageOfHalone', name: 'Rage of Halone', icon: '💥', pot: 340, range: 135, mp: 0, gcd: true, combo: 'riotBlade', desc: 'Combo 3 — giảm ATK địch' },
-  shieldLob:      { id: 'shieldLob', name: 'Shield Lob', icon: '🛡️', pot: 190, range: 450, mp: 0, gcd: true, proj: true, desc: 'Ném khiên — kéo aggro' },
-  hallowedGround: { id: 'hallowedGround', name: 'Hallowed Ground', icon: '✨', pot: 0, range: 0, mp: 0, gcd: false, cd: 110, desc: 'BẤT TỬ 6 giây' },
-  // --- White Mage ---
-  stone:          { id: 'stone', name: 'Stone', icon: '🪨', pot: 240, range: 510, mp: 0, gcd: true, cast: 1.5, proj: true, desc: 'Đá phép — mục tiêu đơn' },
-  aero:           { id: 'aero', name: 'Aero', icon: '🌪️', pot: 70, range: 510, mp: 12, gcd: true, dot: { dur: 9, total: 140, color: '#7de08a' }, desc: 'Gió + sát thương kéo dài 9s' },
-  cure:           { id: 'cure', name: 'Cure', icon: '💚', pot: 0, range: 0, mp: 30, gcd: true, cast: 1.2, heal: 0.35, desc: 'Hồi 35% HP bản thân' },
-  holy:           { id: 'holy', name: 'Holy', icon: '⭐', pot: 260, range: 0, mp: 50, gcd: true, cast: 1.7, aoeSelf: 180, stun: 1.2, desc: 'AoE sáng + choáng kẻ địch' },
-  lucidDreaming:  { id: 'lucidDreaming', name: 'Lucid Dreaming', icon: '💧', pot: 0, range: 0, mp: 0, gcd: false, cd: 60, mana: 0.55, desc: 'Hồi 55% MP' },
-  // --- Black Mage ---
-  fire:           { id: 'fire', name: 'Fire', icon: '🔥', pot: 300, range: 550, mp: 45, gcd: true, cast: 1.7, proj: true, st: 'AF', desc: 'Cầu lửa — cộng dồn Astral Fire (+dame, +tốn MP)' },
-  blizzard:       { id: 'blizzard', name: 'Blizzard', icon: '❄️', pot: 190, range: 550, mp: 0, gcd: true, cast: 1.4, proj: true, mana: 0.35, st: 'UI', desc: 'Băng + hồi MP — chuyển Umbral Ice' },
-  thunder:        { id: 'thunder', name: 'Thunder', icon: '⚡', pot: 70, range: 530, mp: 20, gcd: true, dot: { dur: 12, total: 200, color: '#ffe066' }, desc: 'Sét + sát thương kéo dài 12s' },
-  flare:          { id: 'flare', name: 'Flare', icon: '☄️', pot: 380, range: 550, mp: 90, gcd: true, cast: 2.4, aoeTarget: 170, st: 'AF', desc: 'AoE lửa KHỦNG quanh mục tiêu' },
-  manaward:       { id: 'manaward', name: 'Manaward', icon: '🔷', pot: 0, range: 0, mp: 0, gcd: false, cd: 90, shield: 0.45, desc: 'Khiên phép = 45% HP' },
-  // --- Monk ---
-  bootshine:      { id: 'bootshine', name: 'Boot Shine', icon: '👊', pot: 220, range: 135, mp: 0, gcd: true, critBonus: 0.45, pos: 'rear', desc: 'Combo 1 — đánh SAU LƯNG chắc chắn crit' },
-  trueStrike:     { id: 'trueStrike', name: 'True Strike', icon: '🥊', pot: 280, range: 135, mp: 0, gcd: true, combo: 'bootshine', pos: 'rear', desc: 'Combo 2 — sau lưng +25%' },
-  snapPunch:      { id: 'snapPunch', name: 'Snap Punch', icon: '💫', pot: 330, range: 135, mp: 0, gcd: true, combo: 'trueStrike', haste: 8, pos: 'flank', desc: 'Combo 3 — vào HÔNG +30%' },
-  steelPeak:      { id: 'steelPeak', name: 'Steel Peak', icon: '🌟', pot: 260, range: 145, mp: 0, gcd: false, cd: 40, stun: 1, desc: 'Đấm choáng (oGCD)' },
-  shoulderTackle: { id: 'shoulderTackle', name: 'Shoulder Tackle', icon: '💨', pot: 200, range: 570, mp: 0, gcd: false, cd: 30, dash: true, stun: 1.5, desc: 'Lao tới mục tiêu' },
+  // ===== PALADIN — HỆ THÁNH QUANG =====
+  tramKiem: {
+    id: 'tramKiem', name: 'Trảm Kiếm', icon: '⚔️', key: 'Q', basic: true,
+    pot: 130, range: 135, mp: 0, cd: 0.9, chainEvery: 3, chainBonus: 0.8,
+    color: '#ffe9a0',
+    desc: 'Đánh thường — đòn thứ 3 cộng hưởng thánh quang, +80% sát thương',
+  },
+  nemKhien: {
+    id: 'nemKhien', name: 'Ném Khiên', icon: '🛡️', key: 'E',
+    pot: 190, range: 450, mp: 10, cd: 6, proj: true, taunt: true,
+    color: '#ffd76a',
+    desc: 'Ném khiên bay ra trúng địch rồi QUAY VỀ tay — kéo THÙ HẬN rất lớn',
+  },
+  thanhChanh: {
+    id: 'thanhChanh', name: 'Thánh Chánh Trảm', icon: '💫', key: 'R',
+    pot: 260, range: 170, mp: 20, cd: 12, leap: true, aoeSelf: 120, stun: 1,
+    color: '#fff3c4',
+    desc: 'Nhảy lao tới địch, đáp xuống nổ AoE thánh quang 120px + choáng 1s',
+  },
+  thanhKhien: {
+    id: 'thanhKhien', name: 'Thánh Khiên Bất Diệt', icon: '✨', key: 'F',
+    pot: 0, range: 0, mp: 0, cd: 45, invuln: 5, tauntAoE: 300,
+    color: '#ffe9a0',
+    desc: 'CHIÊU CUỐI — bất tử 5s trong vòm thánh quang + khiêu chiến mọi địch gần',
+  },
+
+  // ===== WHITE MAGE — HỆ THIÊN NHIÊN =====
+  phiThach: {
+    id: 'phiThach', name: 'Phi Thạch', icon: '🪨', key: 'Q', basic: true,
+    pot: 150, range: 500, mp: 0, cd: 1.1, proj: true,
+    color: '#c9b8a0',
+    desc: 'Đánh thường — phóng phi thạch về phía mục tiêu',
+  },
+  cuongPhong: {
+    id: 'cuongPhong', name: 'Cuồng Phong', icon: '🌪️', key: 'E',
+    pot: 90, range: 450, mp: 15, cd: 7, dot: { dur: 8, total: 120, color: '#a8e8b0' },
+    color: '#a8e8b0',
+    desc: 'Vòng xoáy gió cuộn quanh địch — sát thương ngay + DoT gió 8s',
+  },
+  thanhQuang: {
+    id: 'thanhQuang', name: 'Thánh Quang', icon: '🌟', key: 'R',
+    pot: 240, range: 0, mp: 40, cd: 13, cast: 1.6, aoeSelf: 180, stun: 1.2,
+    color: '#fff3c4',
+    desc: 'Đọc thần chú — cột sáng khổng lồ quét AoE 180px quanh bản thân + choáng',
+  },
+  menhThien: {
+    id: 'menhThien', name: 'Mệnh Thiên Hội Phục', icon: '💚', key: 'F',
+    pot: 0, range: 0, mp: 60, cd: 60, cast: 1.4, heal: 0.45, shield: 0.2, revive: 0.4,
+    color: '#b8f0c0',
+    desc: 'CHIÊU CUỐI — hồi 45% HP cả đội, khiên 20% bản thân, HỒI SINH đồng đội gục',
+  },
+
+  // ===== BLACK MAGE — HỆ NGUYÊN TỐ =====
+  hoaTien: {
+    id: 'hoaTien', name: 'Hỏa Tiễn', icon: '🔥', key: 'Q', basic: true,
+    pot: 140, range: 520, mp: 0, cd: 1.1, proj: true,
+    color: '#ff9c2b',
+    desc: 'Đánh thường — cầu lửa nhỏ miễn phí',
+  },
+  bangThuat: {
+    id: 'bangThuat', name: 'Băng Thuật', icon: '❄️', key: 'E',
+    pot: 190, range: 500, mp: 0, cd: 8, cast: 1.2, mana: 0.25, slow: { dur: 4, pct: 0.2 },
+    color: '#9fdcff',
+    desc: 'Mưa mũi băng giáng xuống — sát thương + làm chậm 20%/4s, hồi 25% MP',
+  },
+  loiPhat: {
+    id: 'loiPhat', name: 'Lôi Phạt', icon: '⚡', key: 'R',
+    pot: 210, range: 520, mp: 35, cd: 12, cast: 1.5, dot: { dur: 10, total: 160, color: '#ffe066' },
+    color: '#ffe066',
+    desc: 'Đọc thần chú — tia sét GIÁNG TỪ TRỜI vào địch + DoT sét 10s',
+  },
+  dietTinh: {
+    id: 'dietTinh', name: 'Diệt Tinh Hỏa Ngục', icon: '☄️', key: 'F',
+    pot: 380, range: 500, mp: 80, cd: 40, cast: 2.2, aoeTarget: 170,
+    color: '#ff6b3b',
+    desc: 'CHIÊU CUỐI — mưa thiên thạch thiêu rụi vùng 170px quanh mục tiêu',
+  },
+
+  // ===== MONK — HỆ CHÂN KHÍ =====
+  lienHoan: {
+    id: 'lienHoan', name: 'Liên Hoàn Cước', icon: '👊', key: 'Q', basic: true,
+    pot: 110, range: 135, mp: 0, cd: 0.75, chainEvery: 3, chainBonus: 0.6,
+    color: '#ffd9a0',
+    desc: 'Đánh thường NHANH NHẤT — đòn thứ 3 là cú đá kết liễu +60%',
+  },
+  cuongQuyen: {
+    id: 'cuongQuyen', name: 'Cương Quyền', icon: '🥊', key: 'E',
+    pot: 240, range: 145, mp: 10, cd: 7, stun: 1,
+    color: '#ffb27a',
+    desc: 'Giật tay đấm một cú cháy nổ — sát thương lớn + choáng 1s',
+  },
+  hoaHau: {
+    id: 'hoaHau', name: 'Hỏa Hầu Quyền', icon: '🔥', key: 'R',
+    pot: 0, range: 0, mp: 20, cd: 14, buff: { dur: 10, dmg: 0.25, spd: 0.15 },
+    color: '#ff7a3d',
+    desc: 'Đốt chân khí 10s: +25% sát thương, +15% tốc đánh, aura lửa quanh người',
+  },
+  phongThan: {
+    id: 'phongThan', name: 'Phong Thần Cước', icon: '💨', key: 'F',
+    pot: 320, range: 500, mp: 0, cd: 30, dashThrough: true, stun: 1.5,
+    color: '#ffd75e',
+    desc: 'CHIÊU CUỐI — bay khoé xuyên qua địch, AoE dọc đường lối + choáng 1.5s',
+  },
 };
 
 const JOBS = {
   pld: {
-    id: 'pld', name: 'Paladin', vn: 'Kiếm Sĩ Holy', role: 'TANK', icon: '🛡️', gcd: 2.5, auto: true, autoRange: 135,
+    id: 'pld', name: 'Paladin', vn: 'Kiếm Sĩ Holy', role: 'TANK', icon: '🛡️',
     hp: 900, mp: 300, atk: 27, def: 15, gHp: 82, gMp: 6, gAtk: 3.2, gDef: 1.7,
-    skills: ['fastBlade', 'riotBlade', 'rageOfHalone', 'shieldLob', 'hallowedGround'],
-    desc: 'Trâu bò bậc nhất, combo 1-2-3, chiêu bất tử'
+    hePhai: { name: 'Thánh Quang', icon: '☀️', color: '#ffd76a' },
+    skills: ['tramKiem', 'nemKhien', 'thanhChanh', 'thanhKhien'],
+    desc: 'Hệ Thánh Quang — tank trâu bò, kéo thù hận, khiên bất tử gánh cả đội',
   },
   whm: {
-    id: 'whm', name: 'White Mage', vn: 'Pháp Sĩ Trắng', role: 'HEALER', icon: '🌿', gcd: 2.5, auto: false, autoRange: 0,
+    id: 'whm', name: 'White Mage', vn: 'Pháp Sĩ Trắng', role: 'HEALER', icon: '🌿',
     hp: 560, mp: 460, atk: 33, def: 8, gHp: 48, gMp: 10, gAtk: 3.6, gDef: 0.9,
-    skills: ['stone', 'aero', 'cure', 'holy', 'lucidDreaming'],
-    desc: 'Đá phép + tự hồi máu, sống khỏe lâu dài'
+    hePhai: { name: 'Thiên Nhiên', icon: '🍃', color: '#7de08a' },
+    skills: ['phiThach', 'cuongPhong', 'thanhQuang', 'menhThien'],
+    desc: 'Hệ Thiên Nhiên — gió đá nghệ công, cột sáng AoE, chiêu cuối hồi sinh cả đội',
   },
   blm: {
-    id: 'blm', name: 'Black Mage', icon: '🔮', vn: 'Pháp Sĩ Đen', role: 'CASTER', gcd: 2.5, auto: false, autoRange: 0,
+    id: 'blm', name: 'Black Mage', icon: '🔮', vn: 'Pháp Sĩ Đen', role: 'CASTER',
     hp: 520, mp: 520, atk: 38, def: 7, gHp: 44, gMp: 11, gAtk: 4.1, gDef: 0.8,
-    skills: ['fire', 'blizzard', 'thunder', 'flare', 'manaward'],
-    desc: 'Sát thương phép mạnh nhất, yếu máu'
+    hePhai: { name: 'Nguyên Tố', icon: '🌀', color: '#ff9c2b' },
+    skills: ['hoaTien', 'bangThuat', 'loiPhat', 'dietTinh'],
+    desc: 'Hệ Nguyên Tố — lửa băng sét 3 nguyên tố, thiên thạch hủy diệt diện rộng',
   },
   mnk: {
-    id: 'mnk', name: 'Monk', vn: 'Võ Sĩ', role: 'MELEE', icon: '👊', gcd: 2.1, auto: true, autoRange: 135,
+    id: 'mnk', name: 'Monk', vn: 'Võ Sĩ', role: 'MELEE', icon: '👊',
     hp: 640, mp: 260, atk: 34, def: 10, gHp: 55, gMp: 5, gAtk: 3.8, gDef: 1.1,
-    skills: ['bootshine', 'trueStrike', 'snapPunch', 'steelPeak', 'shoulderTackle'],
-    desc: 'GCD 2.1s đánh liên hoàn, cơ động'
+    hePhai: { name: 'Chân Khí', icon: '✊', color: '#ff8b5c' },
+    skills: ['lienHoan', 'cuongQuyen', 'hoaHau', 'phongThan'],
+    desc: 'Hệ Chân Khí — đánh liên hoàn cực nhanh, đốt chân khí bùng nổ, bay khoé xuyên trận',
   },
 };
 const JOB_ORDER = ['pld', 'whm', 'blm', 'mnk'];
@@ -120,12 +204,12 @@ const ITEM_TIERS = { a1: 15, a2: 25, b1: 35, b2: 45, boss: 60, c1: 70, c2: 70, t
 const TUT_STEPS = [
   { id: 'move',    txt: 'Di chuyển: giữ ngón tay ở NỬA TRÁI màn hình (hoặc phím WASD)', need: 220, hint: 'joy' },
   { id: 'target',  txt: 'Chạm vào một con quái để CHỌN MỤC TIÊU', need: 1, hint: 'enemy' },
-  { id: 'skill',   txt: 'Dùng kỹ năng: chạm nút LỚN NHẤT bên phải (phím 1)', need: 1, hint: 'skill0' },
-  { id: 'skills3', txt: 'Dùng 3 kỹ năng khác nhau (nút 1 → 2 → 3, làm combo)', need: 3, hint: 'skill0' },
+  { id: 'skill',   txt: 'Dùng chiêu đánh thường: nút Q (nút TO NHẤT bên phải)', need: 1, hint: 'skill0' },
+  { id: 'skills3', txt: 'Dùng 3 kỹ năng HỆ PHÁI theo thứ tự: E → R → F', need: 3, hint: 'skill0' },
   { id: 'kill3',   txt: 'Tiêu diệt 3 quái — Thancred 🪓 và Alisaie 🌸 sẽ hỗ trợ bạn', need: 3, hint: 'enemy' },
   { id: 'pickup',  txt: 'Nhặt vật phẩm rơi (💰 gil / 🧪 thuốc tự hút về)', need: 1, hint: 'pickup' },
   { id: 'dodge',   txt: 'NÉ vòng AoE CAM: chạy RA NGOÀI trước khi nó đổ đầy!', need: 1, hint: null },
-  { id: 'potion',  txt: 'Dùng thuốc 🧪 (nút nhỏ trên skill) khi máu xuống thấp', need: 1, hint: 'potion' },
+  { id: 'potion',  txt: 'Dùng thuốc 🧪 (nút nhỏ / phím Z) khi máu xuống thấp', need: 1, hint: 'potion' },
   { id: 'trash',   txt: 'Quét sạch tay sai Ifrit để mở cổng đấu trường', need: TRASH_TOTAL, hint: 'gate' },
   { id: 'boss',    txt: 'Bước vào đấu trường và HẠ GỤC IFRIT. Vì Eorzea! ⚔️', need: 1, hint: 'boss' },
 ];

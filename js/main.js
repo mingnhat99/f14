@@ -4,7 +4,7 @@ const G = {
   state: 'title', t: 0, dutyTime: 0, paused: false,
   VW: 1280, VH: 720, ctx: null, canvas: null, scale: 1, offX: 0, offY: 0,
   player: null, selJob: null, enemies: [], parts: [], texts: [], projs: [], pickups: [],
-  telegraphs: [], slashes: [], rings: [], gates: [], allies: [], markers: [],
+  telegraphs: [], slashes: [], rings: [], gates: [], allies: [], markers: [], fx: [],
   tut: { idx: 0, count: {}, used: new Set(), skip: false, progress: 0 }, helpOpen: false,
   cam: { x: 0, y: 0, shake: 0 },
   banner: null, toasts: [], dialogue: null, dlgIdx: 0,
@@ -61,7 +61,7 @@ function resize() {
 // ----- bắt đầu duty -----
 function buildDuty() {
   G.enemies = []; G.parts = []; G.texts = []; G.projs = []; G.pickups = [];
-  G.telegraphs = []; G.slashes = []; G.rings = []; G.markers = [];
+  G.telegraphs = []; G.slashes = []; G.rings = []; G.markers = []; G.fx = [];
   G.delayed = [];
   G.player = makePlayer(G.selJob);
   G.kills = 0; G.gil = 0; G.paused = false; G.helpOpen = false;
@@ -291,16 +291,16 @@ function demoBot() {
   }
   p.target = tgt;
   const d = dist(p.x, p.y, tgt.x, tgt.y);
-  const want = p.job.auto ? 100 : 420;
+  const want = p.skills[0].def.range <= 200 ? 110 : 420;
   if (d > want) {
     const a = ang(p.x, p.y, tgt.x, tgt.y);
     G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 1 };
-  } else if (d < want - 120 && !p.job.auto) {
+  } else if (d < want - 120 && p.skills[0].def.range > 200) {
     const a = ang(tgt.x, tgt.y, p.x, p.y) + 0.6;
     G.demoMove = { x: Math.cos(a), y: Math.sin(a), mag: 0.8 };
   }
-  // bấm skill
-  if (!p.cast && p.gcd <= 0.05) {
+  // bấm skill (Q trước, rồi E/R/F — tryUseSkill tự kiểm tra cooldown/MP)
+  if (!p.cast && !p.dash) {
     for (let i = 0; i < p.skills.length; i++) {
       if (tryUseSkill(p, i)) break;
     }
@@ -513,6 +513,7 @@ function renderDutyWorld(ctx) {
   ctx.translate(-G.cam.x, -G.cam.y);
   World.drawGates(ctx);
   drawTelegraphs(ctx);
+  FX.drawGround(ctx);
   ctx.restore();
   World.drawEntities(ctx);
   World.drawEmbers(ctx);
