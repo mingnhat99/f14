@@ -110,6 +110,32 @@ const SKILLS = {
     color: '#ffd75e',
     desc: 'CHIÊU CUỐI — bay khoé xuyên qua địch, AoE dọc đường lối + choáng 1.5s (trừ boss)',
   },
+
+  // ===== SWORDMASTER (KIẾM SƯ) — HỆ KIẾM VŨ =====
+  tocTram: {
+    id: 'tocTram', name: 'Tốc Trảm', icon: '⚔️', key: 'Q', basic: true,
+    pot: 120, range: 135, mp: 0, cd: 0.8, chainEvery: 3, chainBonus: 0.7,
+    color: '#cfe8ff',
+    desc: 'Đánh thường — chuỗi 3 nhát chém kiếm, đòn 3 là KIẾM KHÍ +70% sát thương',
+  },
+  xungKiem: {
+    id: 'xungKiem', name: 'Xung Kiếm', icon: '🗡️', key: 'E',
+    pot: 220, range: 460, mp: 10, cd: 9, thrust: true,
+    color: '#9fe8ff',
+    desc: 'Hạ thấp người CHỌC KIẾM về phía trước một đoạn xa — lao xuyên, xuyên phá mọi địch trên đường đâm',
+  },
+  tamDoan: {
+    id: 'tamDoan', name: 'Tam Đoạn Lướt', icon: '🌀', key: 'R',
+    pot: 150, range: 400, mp: 0, cd: 9, charges: 3, slide: true,
+    color: '#dff2ff',
+    desc: 'Lướt kiếm XUYÊN QUA mục tiêu gây sát thương — tích tối đa 3 lần lướt, mỗi lần hồi riêng 9s',
+  },
+  thienKiem: {
+    id: 'thienKiem', name: 'Thiên Kiếm Giáng', icon: '☄️', key: 'F',
+    pot: 420, range: 500, mp: 70, cd: 45, cast: 1.8, aoeTarget: 120, giantsword: true,
+    color: '#ffd9a0',
+    desc: 'CHIÊU CUỐI — TRIỆU HỒI thanh kiếm khổng lồ từ trên trời ĐÁM XUỐNG mục tiêu, nổ AoE 120px',
+  },
 };
 
 const JOBS = {
@@ -141,8 +167,15 @@ const JOBS = {
     skills: ['lienHoan', 'cuongQuyen', 'hoaHau', 'phongThan'],
     desc: 'Hệ Chân Khí — đánh liên hoàn cực nhanh, đốt chân khí bùng nổ, bay khoé xuyên trận',
   },
+  sam: {
+    id: 'sam', name: 'Swordmaster', vn: 'Kiếm Sư', role: 'MELEE', icon: '⚔️',
+    hp: 620, mp: 280, atk: 36, def: 9, gHp: 53, gMp: 6, gAtk: 4.0, gDef: 1.0,
+    hePhai: { name: 'Kiếm Vũ', icon: '🗡️', color: '#9fe8ff' },
+    skills: ['tocTram', 'xungKiem', 'tamDoan', 'thienKiem'],
+    desc: 'Hệ Kiếm Vũ — chém nhanh lấp lánh, xung kiếm xuyên phá, lướt 3 đoạn liên hoàn, thiên kiếm giáng thế',
+  },
 };
-const JOB_ORDER = ['pld', 'whm', 'blm', 'mnk'];
+const JOB_ORDER = ['pld', 'whm', 'blm', 'mnk', 'sam'];
 
 const ETYPES = {
   marmot: { name: 'Marmot', icon: '🐁', hp: 75, dmg: 11, xp: 25, spd: 120, aggro: 260, r: 16, atkRange: 70, atkCd: 2.0, color: '#a9815c' },

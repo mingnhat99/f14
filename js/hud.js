@@ -109,10 +109,12 @@ const HUD = {
   drawSelect(ctx) {
     this.zones = [];
     const cx = G.VW / 2;
-    // máy nhỏ: nén thẻ job lại (~k) cho vừa màn thấp
+    // máy nhỏ: nén thẻ job lại (~k) cho vừa màn thấp; 5 nghề thì thu thêm cho vừa bề ngang
     const k = G.smallUI ? 0.85 : 1;
     const y0 = G.smallUI ? 118 : 132;
-    const cw = Math.round(268 * k), ch = Math.round(400 * k), gap = 30;
+    const gap = 30, nJob = JOB_ORDER.length;
+    const maxCw = (G.VW - 24 - (nJob - 1) * gap) / nJob;
+    const cw = Math.min(Math.round(268 * k), Math.round(maxCw)), ch = Math.round(400 * k);
     const g = ctx.createLinearGradient(0, 0, 0, G.VH);
     g.addColorStop(0, '#141b36'); g.addColorStop(1, '#070a14');
     ctx.fillStyle = g; ctx.fillRect(0, 0, G.VW, G.VH);
@@ -448,8 +450,11 @@ const HUD = {
     p.skills.forEach((s, i) => {
       const b = this.skillBtns[i];
       const def = s.def;
-      const cdFrac = def.cd ? clamp(s.cd / def.cd, 0, 1) : 0;
-      const canUse = s.cd <= 0.05 && p.mp >= def.mp && !p.cast && !p.dash;
+      const maxCh = def.charges || 0;
+      const cdFrac = maxCh
+        ? (s.charges < maxCh ? clamp(s.cd / def.cd, 0, 1) : 0)
+        : (def.cd ? clamp(s.cd / def.cd, 0, 1) : 0);
+      const canUse = (maxCh ? s.charges > 0 : s.cd <= 0.05) && p.mp >= def.mp && !p.cast && !p.dash;
       // đòn đánh thường sắp tới là đòn kết liễu → phát sáng báo hiệu
       const finisherNext = def.basic && p.chain && p.chain.t > 0 && p.chain.n >= (def.chainEvery || 3) - 1;
       ctx.save();
@@ -473,6 +478,15 @@ const HUD = {
       // nhãn phím + giá MP
       ttext(ctx, def.key, -b.r + 13, -b.r + 13, 13, canUse ? '#ffe9a0' : 'rgba(232,236,245,0.55)', 'center', UI_FONT, 1, 'bold');
       if (def.mp > 0) ttext(ctx, `${def.mp}`, b.r - 11, b.r - 11, 10, '#7cc7ff', 'center', UI_FONT, 1, 'bold');
+      // chấm nạp cho skill nhiều lần dùng (vd Tam Đoạn Lướt x3)
+      if (maxCh) {
+        for (let c = 0; c < maxCh; c++) {
+          const px = (c - (maxCh - 1) / 2) * 15;
+          ctx.beginPath(); ctx.arc(px, b.r - 5, 4.2, 0, TAU);
+          ctx.fillStyle = c < s.charges ? def.color : 'rgba(110,120,150,0.4)'; ctx.fill();
+          ctx.strokeStyle = 'rgba(10,14,26,0.7)'; ctx.lineWidth = 1; ctx.stroke();
+        }
+      }
       ctx.restore();
       // nhãn tên nhỏ
       if (i === 0 && G.hintT > 0) ttext(ctx, def.name, b.x, b.y + b.r + 14, 12, `rgba(232,236,245,${Math.min(1, G.hintT)})`);

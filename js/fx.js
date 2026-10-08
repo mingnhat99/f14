@@ -49,6 +49,8 @@ const FX = {
       case 'dome': this.dome(ctx, f, k); break;
       case 'trail': this.trail(ctx, f, k); break;
       case 'icestrike': this.icestrike(ctx, f, k); break;
+      case 'stab': this.stab(ctx, f, k); break;
+      case 'giantsword': this.giantsword(ctx, f, k); break;
     }
   },
 
@@ -276,6 +278,109 @@ const FX = {
         ctx.restore();
       }
     }
+    ctx.restore();
+  },
+
+  // ---- Xung Kiếm: lưỡi kiếm dài chọc tới dọc đường đâm, chớp sáng rồi tan ----
+  stab(ctx, f, k) {
+    const reach = easeOut(clamp(k * 1.6, 0, 1));
+    ctx.save();
+    ctx.lineCap = 'round';
+    const gx = lerp(f.x, f.x1, reach), gy = lerp(f.y, f.y1, reach);
+    const g = ctx.createLinearGradient(f.x, f.y, gx, gy);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(1, f.color);
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 8 * (1 - k * 0.6);
+    ctx.globalAlpha = (1 - k) * 0.85;
+    ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(gx, gy); ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3 * (1 - k * 0.6);
+    ctx.globalAlpha = (1 - k) * 0.95;
+    ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(gx, gy); ctx.stroke();
+    // mũi kiếm sáng
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = (1 - k);
+    ctx.beginPath(); ctx.arc(gx, gy, 4.5 * (1 - k * 0.5), 0, TAU); ctx.fill();
+    ctx.restore();
+  },
+
+  // ---- Thiên Kiếm Giáng: thanh kiếm khổng lồ từ trời đâm xuống rồi cắm vào đất ----
+  giantsword(ctx, f, k) {
+    const hitK = 0.37; // thời điểm lưỡi chạm đất (0.55s trong tmax 1.5)
+    const W = 30, LEN = 250; // bề rộng lưỡi + chiều dài
+    ctx.save();
+    if (k < hitK) {
+      const kk = k / hitK;
+      const sy = lerp(f.y - 540, f.y - 10, kk * kk); // rơi nhanh dần
+      // vòng cảnh báo dưới đất nhấp nháy dần mạnh
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.25 + 0.5 * kk + 0.2 * Math.sin(G.t * 14);
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath(); ctx.ellipse(f.x, f.y, f.r || 110, (f.r || 110) * 0.5, 0, 0, TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      // vệt gió mờ sau lưng kiếm
+      ctx.globalAlpha = 0.25 * (1 - kk * 0.5);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(f.x - W * 0.2, f.y - 560, W * 0.4, sy - (f.y - 540) + LEN * 0.2);
+      this.swordBlade(ctx, f.x, sy, W, LEN, f.color, 1);
+    } else {
+      const ka = clamp((1 - k) / (1 - hitK), 0, 1);
+      // lưỡi cắm xuống đất + nứt tán xạ
+      this.swordBlade(ctx, f.x, f.y - 10, W, LEN, f.color, ka);
+      ctx.globalAlpha = ka * 0.9;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 6; i++) {
+        const a = -0.4 - i * 0.35;
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        ctx.lineTo(f.x + Math.cos(a) * (18 + i * 9), f.y + Math.sin(a) * (10 + i * 5));
+        ctx.stroke();
+      }
+      // khói bụi đá vụn
+      ctx.globalAlpha = ka * 0.8;
+      ctx.fillStyle = '#fff3dc';
+      for (let i = 0; i < 8; i++) {
+        const a = rand(TAU), rr = rand(20, 90) * (1 - ka * 0.4);
+        ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * rr, f.y - rand(0, 14), rand(2, 5) * ka + 1, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
+  // lưỡi kiếm dựng đứng: mũi chúm xuống (x, y)=mũi kiếm, thân kéo dài lên trên
+  swordBlade(ctx, x, y, w, len, color, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const top = y - len;
+    // hào quang xanh nhạt sau lưỡi
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha * 0.35;
+    ctx.fillRect(x - w * 0.75, top, w * 1.5, len - w);
+    // thân lưỡi thép
+    ctx.globalAlpha = alpha;
+    const g = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+    g.addColorStop(0, '#8fa3bd'); g.addColorStop(0.5, '#eef4fb'); g.addColorStop(1, '#b9c8dc');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, top);
+    ctx.lineTo(x + w / 2, top);
+    ctx.lineTo(x + w / 2, y - w);
+    ctx.lineTo(x, y);          // mũi kiếm chúm nhọn
+    ctx.lineTo(x - w / 2, y - w);
+    ctx.closePath(); ctx.fill();
+    // gương sáng dọc sống lưỡi
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillRect(x - w * 0.08, top + 6, w * 0.16, len - w);
+    // chắn kiếm + chuôi phía trên
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffd76a';
+    ctx.fillRect(x - w * 1.1, top - 10, w * 2.2, 10);
+    ctx.fillStyle = '#7a5a30';
+    ctx.fillRect(x - w * 0.32, top - 34, w * 0.64, 26);
     ctx.restore();
   },
 };

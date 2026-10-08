@@ -242,11 +242,13 @@ const World = {
     if (p.act) {
       const k = clamp(p.act.t / p.act.tmax, 0, 1);
       const pulse = Math.sin(Math.PI * k);
-      const d = { slash: 15, punch: 13, kick: 26, toss: -9, cast: 5 }[p.act.kind] || 10;
+      const d = { slash: 15, punch: 13, kick: 26, toss: -9, cast: 5, samSlash: 16, samFinish: 22, thrust: 18, samSlide: 30 }[p.act.kind] || 10;
       ax = Math.cos(p.act.ang) * d * pulse;
       ay = Math.sin(p.act.ang) * d * pulse;
       if (p.act.kind === 'kick') { ay -= 10 * pulse; sc = 1 + 0.06 * pulse; }
       if (p.act.kind === 'cast') sc = 1 + 0.08 * pulse;
+      if (p.act.kind === 'samSlide') { sc = 1 + 0.05 * pulse; }
+      if (p.act.kind === 'thrust') { sc = 1 + 0.04 * pulse; }
     }
     if (p.dash && p.dash.kind === 'leap') {
       lift = Math.sin(Math.PI * clamp(p.dash.t / p.dash.dur, 0, 1)) * 46;
@@ -273,6 +275,7 @@ const World = {
     ctx.beginPath(); ctx.arc(bx, by - 4, p.r, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(20,25,40,0.65)'; ctx.lineWidth = 2; ctx.stroke();
     drawEmoji(ctx, p.job.icon, bx, by - 4, p.r * 1.35, 1, p.job.id.toUpperCase());
+    if (p.job.id === 'sam') this.drawSword(ctx, p, bx, by); // Kiếm Sư: vẽ kiếm + animation chém rõ ràng
     if (p.hitFxT > 0) {
       ctx.globalAlpha = p.hitFxT * 3;
       ctx.fillStyle = '#fff';
@@ -294,6 +297,39 @@ const World = {
     }
     // debuff weakness
     if (p.weaknessT > 0) drawEmoji(ctx, '💧', bx - 26, by - 40, 16, 0.9);
+  },
+  // Kiếm Sư: thanh kiếm trên tay — đứng yên chúc xuống bên hông, tung chiêu thì quét cung / chọc thẳng
+  drawSword(ctx, p, bx, by) {
+    let a = p.face + 2.4, ext = 0, glow = 0;
+    if (p.act) {
+      const k = clamp(p.act.t / p.act.tmax, 0, 1);
+      if (p.act.kind === 'samSlash') a = p.face + lerp(-2.0, 0.8, easeOut(k));
+      else if (p.act.kind === 'samFinish') { const s = clamp((k - 0.2) / 0.55, 0, 1); a = p.face + lerp(-2.4, 1.1, easeOut(s)); glow = 1; }
+      else if (p.act.kind === 'thrust') { a = p.face; ext = Math.sin(Math.PI * clamp(k * 1.3, 0, 1)); }
+      else if (p.act.kind === 'samSlide') a = p.face + Math.PI - 0.6;
+      else if (p.act.kind === 'cast') a = p.face - 0.9;
+    }
+    const L = 40 + ext * 30;
+    const hx = bx + Math.cos(a) * 9, hy = by - 6 + Math.sin(a) * 9;   // chuôi
+    const tx = bx + Math.cos(a) * L, ty = by - 6 + Math.sin(a) * L;   // mũi
+    ctx.save();
+    if (glow) { ctx.shadowColor = '#cfe8ff'; ctx.shadowBlur = 14; }
+    // chắn kiếm vàng
+    const ga = a + Math.PI / 2;
+    ctx.strokeStyle = '#ffd76a'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(hx + Math.cos(ga) * 6, hy + Math.sin(ga) * 6);
+    ctx.lineTo(hx - Math.cos(ga) * 6, hy - Math.sin(ga) * 6);
+    ctx.stroke();
+    // lưỡi thép + lõi trắng
+    ctx.strokeStyle = '#aebfd8'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+    // mũi kiếm
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(tx, ty, 2.6, 0, TAU); ctx.fill();
+    ctx.restore();
   },
   drawEnemy(ctx, e) {
     const targeted = (G.player.target === e);

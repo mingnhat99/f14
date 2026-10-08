@@ -9,7 +9,7 @@ function makePlayer(jobId) {
     level: 1, xp: 0, alive: true, respawnT: 0, weaknessT: 0,
     hp: 0, maxhp: 0, mp: 0, maxmp: 0, atk: 0, def: 0,
     cast: null, chain: null, act: null, spdBuffT: 0,
-    buffs: [], skills: job.skills.map(id => ({ def: SKILLS[id], cd: 0 })),
+    buffs: [], skills: job.skills.map(id => ({ def: SKILLS[id], cd: 0, charges: SKILLS[id].charges || 0 })),
     target: null, lb: 0, pot: 3, kb: { x: 0, y: 0, t: 0 }, dash: null,
     flashT: 0, hitFxT: 0, counterCd: 0,
     gear: { weaponIlvl: 5, weaponAtk: 2, armorIlvl: 5, armorHp: 20, armorDef: 1 },
@@ -127,7 +127,7 @@ function tryUseSkill(p, idx) {
   const s = p.skills[idx];
   if (!s) return false;
   const def = s.def;
-  if (s.cd > 0) return false;
+  if (def.charges ? s.charges <= 0 : s.cd > 0) return false;
   if (p.mp < def.mp) { G.toasts.push({ txt: '💧 Không đủ MP!', t: 0, tmax: 1.1, color: '#7cc7ff' }); return false; }
   if (p.cast || p.dash) return false;
 
@@ -149,8 +149,13 @@ function tryUseSkill(p, idx) {
   if (t) p.face = ang(p.x, p.y, t.x, t.y);
   p.mp -= def.mp;
   if (G.tut && !G.tut.skip) { G.tut.used.add(def.id); }
-  // đánh thường được buff tốc bởi Hỏa Hầu Quyền
-  s.cd = def.basic && getBuff(p, 'firefist') ? def.cd * (1 - getBuff(p, 'firefist').spd) : def.cd;
+  // đánh thường được buff tốc bởi Hỏa Hầu Quyền; skill nhiều nạp trừ 1 nạp + bật hồi nạp nếu đang trống
+  if (def.charges) {
+    s.charges--;
+    if (s.cd <= 0) s.cd = def.cd;
+  } else {
+    s.cd = def.basic && getBuff(p, 'firefist') ? def.cd * (1 - getBuff(p, 'firefist').spd) : def.cd;
+  }
   if (def.cast) {
     p.cast = {
       def, target: t, t: 0, tmax: def.cast,
@@ -174,6 +179,13 @@ function basicChain(p) {
   else p.chain = { n: 1, t: 0 };
   p.chain.t = 4;
   return p.chain.n;
+}
+// khoảng cách từ điểm đến đoạn thẳng (kiểm tra địch nằm trên đường đâm/lướt)
+function distToSeg(px, py, x0, y0, x1, y1) {
+  const dx = x1 - x0, dy = y1 - y0;
+  const l2 = dx * dx + dy * dy || 1;
+  const u = clamp(((px - x0) * dx + (py - y0) * dy) / l2, 0, 1);
+  return dist(px, py, x0 + dx * u, y0 + dy * u);
 }
 function applySkill(p, def, t, tx, ty) {
   if (t) { tx = t.x; ty = t.y; p.face = ang(p.x, p.y, tx, ty); }
@@ -402,6 +414,80 @@ function applySkill(p, def, t, tx, ty) {
       Snd.sfx('swing');
       break;
     }
+
+    // ================= SWORDMASTER — HỆ KIẾM VŨ =================
+    case 'tocTram': {
+      if (!t) break;
+      const n = basicChain(p);
+      const finish = n === def.chainEvery;
+      act(finish ? 'samFinish' : 'samSlash', finish ? 0.34 : 0.22);
+      hitOne(t, def.pot * (finish ? 1 + def.chainBonus : 1));
+      addSlash(t.x, t.y, p.face + (n === 2 ? 0.5 : -0.45), '#cfe8ff', { r: finish ? 1.7 : 1, arcs: finish ? 2 : 1 });
+      if (finish) {
+        G.rings.push({ x: t.x, y: t.y, r0: 10, r1: 92, t: 0, tmax: 0.32, color: '#cfe8ff', w: 5 });
+        addText('KIẾM KHÍ!', p.x, p.y - 58, '#cfe8ff', 14, true);
+        G.cam.shake = Math.max(G.cam.shake, 3);
+      }
+      Snd.sfx('hit');
+      break;
+    }
+    case 'xungKiem': {
+      if (!t) break;
+      act('thrust', 0.34);
+      const a = ang(p.x, p.y, t.x, t.y);
+      const x0 = p.x, y0 = p.y;
+      const d = Math.max(70, dist(p.x, p.y, t.x, t.y) - t.r - 14);
+      const lx = p.x + Math.cos(a) * d, ly = p.y + Math.sin(a) * d;
+      FX.add({ type: 'stab', x: p.x, y: p.y - 4, x1: p.x + Math.cos(a) * (d + 46), y1: p.y + Math.sin(a) * (d + 46) - 4, color: '#9fe8ff', tmax: 0.32 });
+      p.dash = {
+        kind: 'through', t: 0, dur: 0.16, x0, y0, x1: lx, y1: ly, trail: '#cfe8ff',
+        onLand: () => {
+          for (const e of G.enemies) if (e.alive && distToSeg(e.x, e.y, x0, y0, lx, ly) < 44 + e.r) hitOne(e, def.pot);
+          addSlash(lx, ly, a, '#9fe8ff', { r: 1.2 });
+          G.cam.shake = Math.max(G.cam.shake, 3);
+          Snd.sfx('hit2');
+        },
+      };
+      Snd.sfx('swing');
+      break;
+    }
+    case 'tamDoan': {
+      if (!t) break;
+      act('samSlide', 0.3);
+      const a = ang(p.x, p.y, t.x, t.y);
+      const x0 = p.x, y0 = p.y;
+      const len = dist(p.x, p.y, t.x, t.y) + t.r + 36;
+      const lx = p.x + Math.cos(a) * len, ly = p.y + Math.sin(a) * len;
+      FX.add({ type: 'trail', x: p.x, y: p.y, x1: lx, y1: ly, color: '#dff2ff', tmax: 0.35, w: 16 });
+      p.dash = {
+        kind: 'through', t: 0, dur: 0.15, x0, y0, x1: lx, y1: ly, trail: '#dff2ff',
+        onLand: () => {
+          for (const e of G.enemies) if (e.alive && distToSeg(e.x, e.y, x0, y0, lx, ly) < 40 + e.r) hitOne(e, def.pot);
+          addSlash(t.x, t.y, a + Math.PI / 2, '#dff2ff', { r: 1.1 });
+          Snd.sfx('swing');
+        },
+      };
+      Snd.sfx('swing');
+      break;
+    }
+    case 'thienKiem': {
+      const kx = t ? t.x : tx, ky = t ? t.y : ty;
+      FX.add({ type: 'giantsword', x: kx, y: ky, r: def.aoeTarget, color: '#ffd9a0', tmax: 1.5 });
+      after(0.55, () => {
+        if (G.state !== 'duty') return;
+        for (const e of G.enemies) if (e.alive && dist(kx, ky, e.x, e.y) < def.aoeTarget + 30 + e.r) hitOne(e, def.pot);
+        FX.add({ type: 'nova', x: kx, y: ky, r0: 16, r1: def.aoeTarget + 60, color: '#ffd9a0', tmax: 0.5 });
+        FX.add({ type: 'pillar', x: kx, y: ky, color: '#ffd9a0', w: 44, h: 160, tmax: 0.55 });
+        G.rings.push({ x: kx, y: ky, r0: 14, r1: 170, t: 0, tmax: 0.45, color: '#ffd9a0', w: 7 });
+        G.flash = { color: '#fff3dc', t: 0.2, tmax: 0.2 };
+        G.cam.shake = Math.max(G.cam.shake, 12);
+        for (let i = 0; i < 26; i++) addPart(kx + rand(-44, 44), ky + rand(-20, 20), rand(-280, 280), rand(-340, -60), choice(['#ffd9a0', '#fff3dc', '#cfe8ff']), rand(3, 7), 0.85);
+        addText('THIÊN KIẾM GIÁNG!', kx, ky - 74, '#ffd9a0', 17, true);
+        Snd.sfx('bigboom');
+      });
+      Snd.sfx('cast');
+      break;
+    }
   }
 }
 function tryPotion(p) {
@@ -473,7 +559,14 @@ function updatePlayer(p, dt) {
   if (p.act) { p.act.t += dt; if (p.act.t >= p.act.tmax) p.act = null; }
   p.counterCd = Math.max(0, p.counterCd - dt);
   p.mp = Math.min(p.maxmp, p.mp + 7 * dt);
-  for (const s of p.skills) s.cd = Math.max(0, s.cd - dt);
+  for (const s of p.skills) {
+    if (s.def.charges) { // skill nhiều nạp: hồi riêng từng nạp, đầy nạp thì ngừng đếm
+      if (s.charges < s.def.charges) {
+        s.cd = Math.max(0, s.cd - dt);
+        if (s.cd <= 0) { s.charges++; s.cd = s.charges >= s.def.charges ? 0 : s.def.cd; }
+      }
+    } else s.cd = Math.max(0, s.cd - dt);
+  }
   for (const b of p.buffs) b.t -= dt;
   p.buffs = p.buffs.filter(b => b.t > 0);
   if (p.chain) { p.chain.t -= dt; if (p.chain.t <= 0) p.chain = null; }
