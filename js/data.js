@@ -24,7 +24,7 @@ const SKILLS = {
     id: 'thanhChanh', name: 'Thánh Chánh Trảm', icon: '💫', key: 'R',
     pot: 260, range: 170, mp: 20, cd: 12, leap: true, aoeSelf: 120, stun: 1,
     color: '#fff3c4',
-    desc: 'Nhảy lao tới địch, đáp xuống nổ AoE thánh quang 120px + choáng 1s',
+    desc: 'Nhảy lao tới địch, đáp xuống nổ AoE thánh quang 120px + choáng 1s (trừ boss)',
   },
   thanhKhien: {
     id: 'thanhKhien', name: 'Thánh Khiên Bất Diệt', icon: '✨', key: 'F',
@@ -50,7 +50,7 @@ const SKILLS = {
     id: 'thanhQuang', name: 'Thánh Quang', icon: '🌟', key: 'R',
     pot: 240, range: 0, mp: 40, cd: 13, cast: 1.6, aoeSelf: 180, stun: 1.2,
     color: '#fff3c4',
-    desc: 'Đọc thần chú — cột sáng khổng lồ quét AoE 180px quanh bản thân + choáng',
+    desc: 'Đọc thần chú — cột sáng khổng lồ quét AoE 180px quanh bản thân + choáng (trừ boss)',
   },
   menhThien: {
     id: 'menhThien', name: 'Mệnh Thiên Hội Phục', icon: '💚', key: 'F',
@@ -96,7 +96,7 @@ const SKILLS = {
     id: 'cuongQuyen', name: 'Cương Quyền', icon: '🥊', key: 'E',
     pot: 240, range: 145, mp: 10, cd: 7, stun: 1,
     color: '#ffb27a',
-    desc: 'Giật tay đấm một cú cháy nổ — sát thương lớn + choáng 1s',
+    desc: 'Giật tay đấm một cú cháy nổ — sát thương lớn + choáng 1s (trừ boss)',
   },
   hoaHau: {
     id: 'hoaHau', name: 'Hỏa Hầu Quyền', icon: '🔥', key: 'R',
@@ -108,7 +108,7 @@ const SKILLS = {
     id: 'phongThan', name: 'Phong Thần Cước', icon: '💨', key: 'F',
     pot: 320, range: 500, mp: 0, cd: 30, dashThrough: true, stun: 1.5,
     color: '#ffd75e',
-    desc: 'CHIÊU CUỐI — bay khoé xuyên qua địch, AoE dọc đường lối + choáng 1.5s',
+    desc: 'CHIÊU CUỐI — bay khoé xuyên qua địch, AoE dọc đường lối + choáng 1.5s (trừ boss)',
   },
 };
 
@@ -153,10 +153,10 @@ const ETYPES = {
   nail:   { name: 'Infernal Nail', icon: '', hp: 430, dmg: 0, xp: 90, spd: 0, aggro: 0, r: 16, stationary: true, nail: true, color: '#ff7a3d' },
   heart:  { name: 'Heart of Stone', icon: '💠', hp: 1400, dmg: 0, xp: 200, spd: 0, aggro: 0, r: 22, stationary: true, heart: true, noCount: true, color: '#b8a8d8' },
   gaol:   { name: 'Granite Gaol', icon: '🪨', hp: 600, dmg: 0, xp: 100, spd: 0, aggro: 0, r: 26, stationary: true, gaol: true, noCount: true, color: '#9a8d78' },
-  ifrit:  { name: 'Ifrit', icon: '', hp: 4300, dmg: 26, xp: 800, spd: 165, aggro: 2000, r: 58, isBoss: true, atkRange: 165, atkCd: 2.6, color: '#c9402a' },
+  ifrit:  { name: 'Ifrit', icon: '', hp: 5200, dmg: 26, xp: 800, spd: 165, aggro: 2000, r: 58, isBoss: true, atkRange: 165, atkCd: 2.6, color: '#c9402a' },
   golem:  { name: 'Stone Golem', icon: '🪨', hp: 320, dmg: 24, xp: 90, spd: 105, aggro: 280, r: 24, atkRange: 78, atkCd: 2.4, color: '#8a7f70' },
   sprite: { name: 'Land Sprite', icon: '🌱', hp: 130, dmg: 16, xp: 70, spd: 150, aggro: 320, r: 16, ranged: true, castRange: 360, keepDist: 260, atkCd: 3.2, color: '#7fae6b' },
-  titan:  { name: 'Titan', icon: '🗿', hp: 27000, dmg: 34, xp: 1600, spd: 150, aggro: 2200, r: 64, isBoss: true, titan: true, dropTier: 90, title: 'TITAN — PRIMAL CỦA ĐẤT', atkRange: 175, atkCd: 2.4, color: '#a08a6a' },
+  titan:  { name: 'Titan', icon: '🗿', hp: 32000, dmg: 34, xp: 1600, spd: 150, aggro: 2200, r: 64, isBoss: true, titan: true, dropTier: 90, title: 'TITAN — PRIMAL CỦA ĐẤT', atkRange: 175, atkCd: 2.4, color: '#a08a6a' },
 };
 
 // Map 4700x1600 — trái (start) → giữa (Ifrit) → phải (Titan)

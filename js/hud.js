@@ -301,12 +301,24 @@ const HUD = {
       const bbw = 560, bbx = (G.VW - bbw) / 2, bby = 58;
       ttext(ctx, b.def.title || 'IFRIT — PRIMAL CỦA LỬA', cx, bby - 6, 15, b.def.titan ? '#e0c9a0' : '#ff9c6b', 'center', TITLE_FONT, 1, 'bold');
       this.bar(ctx, bbx, bby, bbw, 20, b.hp / b.maxhp, '#c9402a');
+      // vạch trắng đánh dấu NGƯỠNG ĐỔI PHASE trên thanh máu
+      const gates = b.def.titan ? [0.70, 0.35] : [0.60, 0.30];
+      for (const g of gates) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(bbx + bbw * g, bby + 3); ctx.lineTo(bbx + bbw * g, bby + 17); ctx.stroke();
+      }
       ttext(ctx, `${Math.ceil(Math.max(0, b.hp))} / ${b.maxhp}`, cx, bby + 10, 12, '#fff', 'center', UI_FONT, 1, 'bold');
+      if (b.def.titan && b.engaged) { // nhãn giai đoạn hiện tại
+        const ph = TITAN_PHASES[Math.min(b.phaseIdx, TITAN_PHASES.length - 1)];
+        ttext(ctx, `P${b.phaseIdx + 1} · ${ph.name.replace(/^GIAI ĐOẠN \d+ — /, '')}`, bbx + 4, bby - 6, 13, b.phaseIdx === 2 ? '#ff9c6b' : '#ffe066', 'left', UI_FONT, 1, 'bold');
+      }
       if (b.atkBuff > 1) ttext(ctx, `🔥 ENRAGE x${b.atkBuff.toFixed(2)}`, bbx + bbw - 4, bby - 6, 12, '#ff5b5b', 'right');
       if (b.def.titan) {
-        const sk = clamp((b.stagger || 0) / 100, 0, 1);
-        this.bar(ctx, bbx, bby + 22, bbw, 10, sk, sk > 0.7 ? '#ffef9a' : '#ffe066');
-        ttext(ctx, 'STAGGER', bbx + 46, bby + 27, 9, '#1a1408', 'center', UI_FONT, 1, 'bold');
+        if (G.staggerCheck && G.staggerCheck.titan === b) { // thanh stagger chỉ hiện khi CHECK đang chạy
+          const sk = clamp((b.stagger || 0) / 100, 0, 1);
+          this.bar(ctx, bbx, bby + 22, bbw, 10, sk, sk > 0.7 ? '#ffef9a' : '#ffe066');
+          ttext(ctx, 'STAGGER', bbx + 46, bby + 27, 9, '#1a1408', 'center', UI_FONT, 1, 'bold');
+        }
         if (b.cast) {
           this.bar(ctx, bbx, bby + 36, bbw, 14, b.cast.t / b.cast.tmax, b.cast.color || '#ffd75e', 'rgba(20,16,8,0.9)');
           ttext(ctx, `⚒ ${b.cast.name}${b.cast.counterable ? '  ⟵ COUNTER! (6)' : ''}`, cx, bby + 43, 11, b.cast.counterable ? '#0a4a5a' : '#1a1408', 'center', UI_FONT, 1, 'bold');
@@ -582,9 +594,9 @@ const HUD = {
       ['🔥', 'Infernal Nail', 'Phá hủy NGAY trước khi đồng hồ cháy hết'],
       ['🪓🌸', 'NPC đồng đội', 'Thancred giữ aggro, Alisaie hồi máu — hãy đứng gần'],
       ['🌈', 'Limit Break (phím X)', 'Đầy 100% thì bấm — chiêu cuối cực mạnh'],
-      ['⚡', 'STAGGER (thanh vàng)', 'Đánh liên tục để làm đầy — đầy 100 Titan CHOÁNG, nhận thêm damage'],
+      ['⚡', 'STAGGER CHECK (đầu P2)', '8s dồn damage làm đầy thanh vàng — đầy là Titan ĐỔ GỤC 5s, ăn thêm 50% damage. Damage thường ngoài check KHÔNG làm boss ngã'],
       ['🛡️', 'COUNTER (nút 🛡 / phím C)', 'Đòn cast XANH: lại gần bấm 🛡 đúng lúc để PARRY — không thì cả team ăn 80% HP'],
-      ['💠', 'Heart of Stone', 'Phá trong 12s khi xuất hiện — fail là WIPE cả team'],
+      ['💠', 'Heart of Stone', 'Phá trong 12s khi xuất hiện — phá xong Titan ngã 6s, fail là WIPE cả team'],
       ['🪨', 'Granite Gaol', 'Cũi đá giam 1 người — PHÁ CÙI trong 10s nếu không người đó chết'],
       ['🌋', 'Earthen Fury', '3 đợt quét sân — chỉ góc XANH an toàn, đứng sai 1 lần là wipe'],
       ['🌀', 'Seismic Dive', 'Titan CHÌM xuống rồi LAO TỚI chỗ bạn — vòng cam bám nửa cast rồi KHÓA lại: chạy ra ngay khi nó ngừng bám'],

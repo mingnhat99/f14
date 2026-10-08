@@ -59,10 +59,10 @@ function dealToEnemy(e, amount, opts = {}) {
   const d = Math.max(1, amount * mult * (opts.crit ? 1 : 1));
   const dmgFinal = (e.vulnT || 0) > 0 ? d * 1.5 : d;
   e.hp -= dmgFinal;
-  if (e.def.titan && !e.shielded && (e.staggeredT || 0) <= 0 && !e.cast) {
-    const rate = { player: 0.30, tank: 0.35, healer: 0.08 }[opts.from || 'player'] || 0.30;
+  // Stagger gauge CHỈ tích trong cửa sổ Stagger Check (cơ chế đặc biệt) — damage thường không làm boss ngã
+  if (e.def.titan && G.staggerCheck && G.staggerCheck.titan === e && !e.shielded && (e.staggeredT || 0) <= 0) {
+    const rate = { player: 0.04, tank: 0.05, healer: 0.012 }[opts.from || 'player'] || 0.04; // ~4-5s DPS cả team mới đầy
     e.stagger = Math.min(100, (e.stagger || 0) + dmgFinal * rate);
-    if (e.stagger >= 100) titanStaggered(e, 5);
   }
   e.flashT = 0.12;
   // ghi nhận thù hận (enmity): tank nhân hệ số, healer vừa đánh vừa hồi
@@ -181,7 +181,11 @@ function applySkill(p, def, t, tx, ty) {
     const { dmg, crit } = playerPotency(p, pot2);
     dealToEnemy(e, dmg, { crit });
     p.lb = Math.min(100, p.lb + 2.4);
-    if (def.stun) e.stunT = Math.max(e.stunT || 0, def.stun);
+    if (def.stun) {
+      // boss miễn nhiễm choáng từ chiêu thường — chỉ ngã khi dính cơ chế đặc biệt (parry Upheaval, stagger gauge)
+      if (e.def.isBoss) addText('MIỄN CHOÁNG', e.x, e.y - e.r - 34, '#8b93a8', 13, true);
+      else e.stunT = Math.max(e.stunT || 0, def.stun);
+    }
     if (def.slow) e.slowT = Math.max(e.slowT || 0, def.slow.dur);
   };
   // animation tung chiêu trên thân nhân vật
@@ -366,7 +370,7 @@ function applySkill(p, def, t, tx, ty) {
       hitOne(t, def.pot);
       FX.add({ type: 'nova', x: t.x, y: t.y, r0: 8, r1: 72, color: '#ffb27a', tmax: 0.3 });
       for (let i = 0; i < 10; i++) addPart(t.x + rand(-14, 14), t.y + rand(-8, 8), rand(-120, 120), rand(-160, -40), '#ffb27a', rand(2, 4.5), 0.45);
-      addText('CHOÁNG!', t.x, t.y - t.r - 24, '#ffd75e', 14, true);
+      if (!t.def.isBoss) addText('CHOÁNG!', t.x, t.y - t.r - 24, '#ffd75e', 14, true);
       Snd.sfx('hit2');
       break;
     }
@@ -1795,8 +1799,8 @@ function updateTitan(e, dt) {
   e.atkBuffT = Math.max(0, e.atkBuffT - dt);
   if (e.atkBuffT <= 0 && !e.enraged && e.atkBuff > 1) e.atkBuff = Math.max(1, e.atkBuff - dt * 0.25);
   if ((e.staggeredT || 0) <= 0) e.stagger = Math.max(0, (e.stagger || 0) - 5 * dt); // decay
-  // Stagger Check đầu P2: 8s làm đầy gauge từ 0 (chạy theo đồng hồ thật, kể cả khi boss cast/choáng)
-  if (e.checkDone !== true && e.phaseIdx === 1 && !G.enemies.some(x => x.alive && (x.def.heart || x.def.gaol))) {
+  // Stagger Check đầu P2: 8s làm đầy gauge từ 0 — chỉ bắt đầu SAU khi màn mở P2 (nhảy + xạ 5 mũi tên) chạy xong
+  if (e.checkDone !== true && e.phaseIdx === 1 && !e.p2Intro && !e.rush && !G.enemies.some(x => x.alive && (x.def.heart || x.def.gaol))) {
     if (G.staggerCheck === null || G.staggerCheck === undefined) {
       e.checkDone = false;
     }
@@ -1814,6 +1818,7 @@ function updateTitan(e, dt) {
       e.skipFirstGaol = true;
       G.staggerCheck = null;
       e.checkDone = true;
+      if (e.stagger >= 100 && (e.staggeredT || 0) <= 0) titanStaggered(e, 5); // phần thưởng: Titan đổ gục, ăn +50% damage
       G.toasts.push({ txt: '✅ STAGGER CHECK THÀNH CÔNG — bỏ qua Gaol đầu tiên!', t: 0, tmax: 2.4, color: '#7de08a' });
     } else if (G.staggerCheck.t >= G.staggerCheck.tmax) {
       G.staggerCheck = null;
@@ -1891,7 +1896,10 @@ function updateTitan(e, dt) {
     e.cast = null;
     cancelOwnerTelegraphs(e);
     const np = TITAN_PHASES[e.phaseIdx];
-    G.banner = { txt: `🗿 ${np.name}`, sub: 'Titan đổi chiến thuật!', t: 0, tmax: 2.4 };
+    const sub = e.phaseIdx === 1
+      ? 'Trái tim đá vỡ! Titan NHẢY GIỮA SÂN + xạ 5 MŨI TÊN ĐÁ — né theo đường thẳng!'
+      : 'CƠN THỊNH NỘ — đòn ra nhanh hơn, UPHEAVAL xanh có thể COUNTER (phím C)!';
+    G.banner = { txt: `🗿 ${np.name}`, sub, t: 0, tmax: 3.0 };
     Snd.sfx('rumble'); G.cam.shake = 14;
     rockBurst(e.x, e.y, 16, 240); // gầm chuyển phase
     G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 420, t: 0, tmax: 0.6, color: '#d9c48f', w: 8 });
