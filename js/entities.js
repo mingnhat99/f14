@@ -128,7 +128,13 @@ function tryUseSkill(p, idx) {
   if (!s) return false;
   const def = s.def;
   if (def.charges ? s.charges <= 0 : s.cd > 0) return false;
-  if (p.mp < def.mp) { G.toasts.push({ txt: '💧 Không đủ MP!', t: 0, tmax: 1.1, color: '#7cc7ff' }); return false; }
+  if (p.mp < def.mp) {
+    if (!(p.mpWarnT > 0)) { // chống spam: tối đa 1 lần / 2s khi bấm liên tục
+      G.toasts.push({ txt: '💧 Không đủ MP!', t: 0, tmax: 1.1, color: '#7cc7ff' });
+      p.mpWarnT = 2;
+    }
+    return false;
+  }
   if (p.cast || p.dash) return false;
 
   // mục tiêu (skill self-cast có range 0 thì không cần)
@@ -143,7 +149,7 @@ function tryUseSkill(p, idx) {
         if (d < def.range + e.r && d < bd) { bd = d; best = e; }
       }
       if (best) t = best;
-      else { G.toasts.push({ txt: `Ngoài tầm — ${def.name}`, t: 0, tmax: 0.9, color: '#ff9c6b' }); return false; }
+      else return false; // ngoài tầm → bỏ qua im lặng, không báo giữa màn hình
     }
   }
   if (t) p.face = ang(p.x, p.y, t.x, t.y);
@@ -550,6 +556,7 @@ function updatePlayer(p, dt) {
   p.flashT = Math.max(0, p.flashT - dt); p.hitFxT = Math.max(0, p.hitFxT - dt);
   if (p.act) { p.act.t += dt; if (p.act.t >= p.act.tmax) p.act = null; }
   p.counterCd = Math.max(0, p.counterCd - dt);
+  p.mpWarnT = Math.max(0, (p.mpWarnT || 0) - dt);
   p.mp = Math.min(p.maxmp, p.mp + 7 * dt);
   for (const s of p.skills) {
     if (s.def.charges) { // skill nhiều nạp: hồi riêng từng nạp, đầy nạp thì ngừng đếm
@@ -1694,7 +1701,8 @@ const TITAN_PHASES = [
   },
   {
     id: 'p3', name: 'GIAI ĐOẠN 3 — CƠN THỊNH NỘ', gate: 0, tempo: 0.75,
-    actions: ['fury', 'upheaval', 'rockslide', 'mountainbuster', 'seismicdive', 'crossslide', 'geocrush', 'bury'],
+    // P3: Titan NHẢY GIỮA SÂN + ĐỨNG YÊN — chỉ quét pizza, xạ tên và các đòn tại chỗ, không di chuyển
+    actions: ['pizza', 'arrow', 'upheaval', 'pizza', 'mountainbuster', 'fury', 'tumult', 'arrow', 'bury', 'pizza'],
   },
 ];
 
@@ -1717,15 +1725,30 @@ function titanDashTo(e, nx, ny, big = false) {
 function castTitanAbility(e, id) {
   if (id === 'gaol' && e.skipFirstGaol) { e.skipFirstGaol = false; return; }
   const tempo = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)].tempo;
-  const base = { landslide: 2.0, geocrush: 2.2, tumult: 1.8, bury: 2.6, crossslide: 1.9, bomb: 2.0, gaol: 2.2, fury: 7.0, upheaval: 2.0, mountainbuster: 2.4, seismicdive: 1.7, rockslide: 1.6 }[id] || 2.6;
+  const base = { landslide: 2.0, geocrush: 2.2, tumult: 1.8, bury: 2.6, crossslide: 1.9, bomb: 2.0, gaol: 2.2, fury: 7.0, upheaval: 2.0, mountainbuster: 2.4, seismicdive: 1.7, rockslide: 1.6, pizza: 2.9, arrow: 2.2 }[id] || 2.6;
   const tmax = base * tempo * (e.rageNext ? 0.8 : 1);
   if (e.rageNext) {
     G.toasts.push({ txt: '🗿 Titan NỔI GIẬN — ra đòn nhanh hơn!', t: 0, tmax: 1.6, color: '#ff9c6b' });
     e.rageNext = false;
   }
-  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult', bury: 'Bury', crossslide: 'Cross Slide', bomb: 'Bombardment', gaol: 'Granite Gaol', fury: 'Earthen Fury', upheaval: 'Upheaval', mountainbuster: 'Mountain Buster', seismicdive: 'Seismic Dive', rockslide: 'Rock Slide' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
+  e.cast = { id, name: { landslide: 'Landslide', geocrush: 'Geocrush', tumult: 'Tumult', bury: 'Bury', crossslide: 'Cross Slide', bomb: 'Bombardment', gaol: 'Granite Gaol', fury: 'Earthen Fury', upheaval: 'Upheaval', mountainbuster: 'Mountain Buster', seismicdive: 'Seismic Dive', rockslide: 'Rock Slide', pizza: 'Vòng Xoáy Đá', arrow: 'Xạ Mũi Tên' }[id] || id, t: 0, tmax, color: '#e0c9a0' };
   Snd.sfx('cast');
-  if (id === 'landslide') {
+  if (id === 'pizza') {
+    // P3 — "PIZZA": đứng giữa sân quét 3 lát 120° xoay tròn, luôn chừa 2/3 sân an toàn
+    G.toasts.push({ txt: '🍕 VÒNG XOÁY ĐÁ — né theo LÁT CẮT xoay tròn!', t: 0, tmax: 2.2, color: '#ffd75e' });
+    const A = MAP.titanArena;
+    const a0 = rand(TAU);
+    for (let i = 0; i < 3; i++) {
+      const tg = addTelegraph({ owner: e, shape: 'sector', x: A.x, y: A.y, r: A.r + 60, ang: a0 + i * TAU / 3, spread: TAU / 3 - 0.1, tmax: 1.5, dmg: 300 * e.atkBuff, knockback: 300, label: 'Vòng Xoáy Đá', resolveFx: 'stone' });
+      tg.t = -i * 1.4; // lát sau quét trễ hơn → tạo vòng xoay
+    }
+    Snd.sfx('rumble');
+  } else if (id === 'arrow') {
+    // P3 — XẠ MŨI TÊN: đứng giữa sân, 3 phát liên tiếp nhắm ngẫu nhiên người sống
+    after(0.3, () => { if (e.alive && e.engaged) titanArrowShot(e, 1, true); });
+    after(1.1, () => { if (e.alive && e.engaged) titanArrowShot(e, 2, true); });
+    after(1.9, () => { if (e.alive && e.engaged) titanArrowShot(e, 3, true); });
+  } else if (id === 'landslide') {
     // AI thích ứng: nhắm người ĐỨNG XA boss nhất — hết cast Titan LAO THEO ĐƯỜNG đá
     let far = null, fd = -1;
     for (const m of partyMembers()) { if (!m.alive) continue; const d = dist(e.x, e.y, m.x, m.y); if (d > fd) { fd = d; far = m; } }
@@ -1882,6 +1905,7 @@ function titanStaggered(e, dur) {
   e.cast = null;
   e.rush = null; // choáng cũng ngắt dở chuỗi Granite Rush
   e.p2Intro = null; e.jumpZ = 0; // và ngắt dở màn mở P2 (nhảy/xạ tên)
+  e.finalJump = null; // ngắt cả cú nhảy P3 (finalStand giữ nguyên — Titan vẫn planted giữa sân)
   G.markers = G.markers.filter(m => m.type !== 'rush');
   cancelOwnerTelegraphs(e);
   G.markers = G.markers.filter(m => m.owner !== e); // marker gắn với cast (vd Mountain Buster) cũng bị ngắt
@@ -1963,6 +1987,7 @@ function updateTitan(e, dt) {
     }
   }
   // Phạt greed lưng: đứng sau Titan >4s → Seismic Slap (tích theo thời gian thực)
+  if (e.finalStand) { e.x = MAP.titanArena.x; e.y = MAP.titanArena.y; } // P3: planted giữa sân, không bao giờ rời vị trí
   if (!e.greed) e.greed = {};
   const rearBase = (e.face || 0) + Math.PI;
   for (const m of partyMembers()) {
@@ -1982,6 +2007,8 @@ function updateTitan(e, dt) {
   if (e.rush) { updateTitanRush(e, dt); return; }
   // Màn mở P2: nhảy vào giữa sân + xạ 5 mũi tên đá theo đường thẳng
   if (e.p2Intro) { updateTitanP2Intro(e, dt); return; }
+  // P3: nhảy về giữa sân rồi ĐỨNG YÊN cả phase (quét pizza + xạ tên)
+  if (e.finalJump) { updateTitanFinalJump(e, dt); return; }
   if (e.openerPending) {
     e.openerDelay -= dt;
     if (e.openerDelay <= 0) { e.openerPending = false; startTitanRush(e); }
@@ -1999,10 +2026,10 @@ function updateTitan(e, dt) {
     if (e.cast.t >= e.cast.tmax) { const c = e.cast; e.cast = null; if (c.onDone) c.onDone(e); }
     return;
   }
-  // đòn thường: 55% cào — 45% STOMP AoE quanh thân (ép không đứng ôm boss)
+  // đòn thường: 55% cào — 45% STOMP AoE quanh thân (ép không đứng ôm boss); P3 đứng yên nên bỏ cào
   e.clawCd -= dt;
   const clawTgt = enmityTarget(e);
-  if (e.clawCd <= 0 && clawTgt.alive && dist(e.x, e.y, clawTgt.x, clawTgt.y) < e.def.atkRange) {
+  if (e.clawCd <= 0 && clawTgt.alive && !e.finalStand && dist(e.x, e.y, clawTgt.x, clawTgt.y) < e.def.atkRange) {
     e.clawCd = e.def.atkCd;
     if (Math.random() < 0.45) {
       addTelegraph({ owner: e, shape: 'circle', follow: e, r: 185, tmax: 1.0, dmg: 240 * e.atkBuff, knockback: 320, label: 'Tectonic Stomp', resolveFx: 'stone' });
@@ -2037,6 +2064,7 @@ function updateTitan(e, dt) {
     rockBurst(e.x, e.y, 16, 240); // gầm chuyển phase
     G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 420, t: 0, tmax: 0.6, color: '#d9c48f', w: 8 });
     if (e.phaseIdx === 1) startTitanP2Intro(e); // mở màn P2: nhảy giữa sân + xạ mũi tên
+    else if (e.phaseIdx === 2) startTitanFinalStand(e); // mở màn P3: nhảy giữa sân + ĐỨNG YÊN quét pizza
   }
   const phNow = TITAN_PHASES[Math.min(e.phaseIdx, TITAN_PHASES.length - 1)];
   // Tức giận: player né sạch 3 telegraph liên tiếp → đòn kế nhanh hơn 20%
@@ -2057,7 +2085,7 @@ function updateTitan(e, dt) {
     castTitanAbility(e, list[e.rotIdx % list.length]);
     e.rotIdx++;
     e.abilityCd = 2.7 * phNow.tempo; // nhịp dồn: 2.7s P1 → 2.0s P3
-  } else if (clawTgt.alive) {
+  } else if (clawTgt.alive && !e.finalStand) {
     const d = dist(e.x, e.y, clawTgt.x, clawTgt.y);
     if (d > 170) {
       const a = ang(e.x, e.y, clawTgt.x, clawTgt.y);
@@ -2161,7 +2189,7 @@ function startTitanP2Intro(e) {
   G.toasts.push({ txt: '🗿 TITAN NHẢY VÀO GIỮA SÂN — né MŨI TÊN ĐÁ theo đường thẳng!', t: 0, tmax: 2.6, color: '#ffd75e' });
   Snd.sfx('rumble');
 }
-function titanArrowShot(e, n) {
+function titanArrowShot(e, n, keepCast = false) {
   const A = MAP.titanArena;
   const alive = partyMembers().filter(m => m.alive);
   if (!alive.length) return false;
@@ -2176,7 +2204,7 @@ function titanArrowShot(e, n) {
   addTelegraph({ owner: e, shape: 'rect', x: e.x + Math.cos(a) * len / 2, y: e.y + Math.sin(a) * len / 2, w: len, h: 58, ang: a, tmax, dmg: 280 * e.atkBuff, label: 'Stone Arrow', resolveFx: 'stone' });
   // mũi tên đá bay dọc tia — tới nơi đúng lúc đường nổ
   addProj({ x: e.x + Math.cos(a) * e.r * 0.5, y: e.y + Math.sin(a) * e.r * 0.5, tx: ex, ty: ey, spd: len / tmax, arrow: true, size: 22, color: '#d9c48f', trail: '#e8dcc0', visual: true });
-  e.cast = { id: 'arrow', name: `Xạ Mũi Tên Đá (${n}/5)`, t: 0, tmax, color: '#e0c9a0' };
+  if (!keepCast) e.cast = { id: 'arrow', name: `Xạ Mũi Tên Đá (${n}/5)`, t: 0, tmax, color: '#e0c9a0' };
   Snd.sfx('cast');
   return true;
 }
@@ -2215,6 +2243,37 @@ function updateTitanP2Intro(e, dt) {
   }
   if (e.cast) e.cast.t = Math.min(e.cast.tmax, e.cast.t + dt);
 }
+
+// ---------- P3: NHẢY GIỮA SÂN + ĐỨNG YÊN (quét pizza + xạ tên, không đuổi theo) ----------
+function startTitanFinalStand(e) {
+  e.finalJump = { t: 0, dur: 0.75, x0: e.x, y0: e.y };
+  e.finalStand = false;
+  e.cast = null;
+  cancelOwnerTelegraphs(e);
+  e.abilityCd = 1.8; // tiếp đất xong mới vào rotation P3
+  G.toasts.push({ txt: '🗿 TITAN NHẢY GIỮA SÂN — đứng yên quét PIZZA + xạ tên. Đây là lúc DỒN DPS!', t: 0, tmax: 3, color: '#ff9c6b' });
+  Snd.sfx('rumble');
+}
+function updateTitanFinalJump(e, dt) {
+  const J = e.finalJump, A = MAP.titanArena;
+  J.t += dt;
+  const k = Math.min(1, J.t / J.dur);
+  const s = k * k * (3 - 2 * k); // smoothstep như màn mở P2
+  e.x = lerp(J.x0, A.x, s);
+  e.y = lerp(J.y0, A.y, s);
+  e.jumpZ = Math.sin(k * Math.PI) * 140;
+  e.face = ang(e.x, e.y, G.player.x, G.player.y);
+  if (Math.random() < 0.6) addPart(e.x + rand(-20, 20), e.y + rand(-12, 12), rand(-40, 40), rand(-80, -20), choice(['#8a7458', '#b8a878']), rand(3, 6), 0.5);
+  if (k >= 1) {
+    e.jumpZ = 0;
+    e.finalJump = null;
+    e.finalStand = true;
+    rockBurst(e.x, e.y, 26, 380);
+    G.rings.push({ x: e.x, y: e.y, r0: 30, r1: 380, t: 0, tmax: 0.5, color: '#d9c48f', w: 8 });
+    G.cam.shake = 14; Snd.sfx('bigboom');
+    G.banner = { txt: '🗿 CƠN THỊNH NỘ', sub: 'Titan ĐỨNG YÊN giữa sân — né lát xoay + mũi tên, dồn sát thương!', t: 0, tmax: 2.6 };
+  }
+}
 function cancelOwnerTelegraphs(owner) {
   G.telegraphs = G.telegraphs.filter(t => t.owner !== owner);
 }
@@ -2226,6 +2285,7 @@ function resetTitanFight() {
   e.cast = null; e.stunT = 0;
   e.rush = null; e.openerPending = false; e.openerDelay = 1.2;
   e.p2Intro = null; e.jumpZ = 0;
+  e.finalJump = null; e.finalStand = false;
   e.stagger = 0; e.staggeredT = 0; e.vulnT = 0; e.shielded = false;
   e.phaseIdx = 0; e.rotIdx = 0; e.abilityCd = 2.5; e.clawCd = 1.5;
   e.heartDone = false; e.checkDone = false; e.skipFirstGaol = false;

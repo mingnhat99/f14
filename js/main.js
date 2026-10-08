@@ -403,6 +403,7 @@ function update(dt) {
   if (G.banner) { G.banner.t += dt; if (G.banner.t > G.banner.tmax) G.banner = null; }
   G.toasts.forEach(t => t.t += dt);
   G.toasts = G.toasts.filter(t => t.t < t.tmax);
+  if (G.toasts.length > 4) G.toasts.splice(0, G.toasts.length - 4); // không chất quá 4 thông báo giữa màn
   G.dmgFlash = Math.max(0, G.dmgFlash - dt * 2.2);
   if (G.flash) { G.flash.t -= dt; if (G.flash.t <= 0) G.flash = null; }
   G.hintT = Math.max(0, G.hintT - dt);

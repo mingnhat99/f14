@@ -614,6 +614,7 @@ const HUD = {
       ['💠', 'Heart of Stone', 'Phá trong 12s khi xuất hiện — phá xong Titan ngã 6s, fail là WIPE cả team'],
       ['🪨', 'Granite Gaol', 'Cũi đá giam 1 người — PHÁ CÙI trong 10s nếu không người đó chết'],
       ['🌋', 'Earthen Fury', '3 đợt quét sân — chỉ góc XANH an toàn, đứng sai 1 lần là wipe'],
+      ['🍕', 'Vòng Xoáy Đá (P3)', 'Titan đứng giữa sân quét 3 lát xoay tròn + xạ mũi tên — chạy theo LÁT AN TOÀN, chừa 2/3 sân'],
       ['🌀', 'Seismic Dive', 'Titan CHÌM xuống rồi LAO TỚI chỗ bạn — vòng cam bám nửa cast rồi KHÓA lại: chạy ra ngay khi nó ngừng bám'],
       ['🎯', 'Granite Rush (mở màn)', 'Đầu trận Titan khóa 1 người 🔴 rồi lướt qua 3 lần — ai trên đường lướt bị hất, tránh khỏi đường'],
     ];
