@@ -162,8 +162,9 @@ const HUD = {
       ctx.globalAlpha = 0.16; ctx.fillStyle = hp.color; ctx.fill();
       ctx.globalAlpha = 1; ctx.strokeStyle = hp.color; ctx.lineWidth = 1.5; ctx.stroke();
       ttext(ctx, `${hp.icon} HỆ ${hp.name.toUpperCase()}`, x + cw / 2, y + 242 * k, 12, hp.color, 'center', UI_FONT, 1, 'bold');
-      // mô tả
-      wrapText(ctx, j.desc, x + cw / 2, y + 266 * k, cw - 30, 17, '#c9d2e4');
+      // mô tả (thẻ hẹp do nhiều job → chữ nhỏ hơn cho vừa)
+      const dsz = cw < 245 ? 14 : 17;
+      wrapText(ctx, j.desc, x + cw / 2, y + 268 * k, cw - 24, dsz + 4, '#c9d2e4', 'center', dsz);
       // stat bars
       const stats = [['HP', j.hp / 900], ['ATK', j.atk / 38], ['DEF', j.def / 15]];
       stats.forEach(([nm, kk], si) => {
@@ -711,18 +712,18 @@ const HUD = {
 };
 
 // chữ tự xuống dòng
-function wrapText(ctx, txt, cx, y, maxW, lineH, color, align = 'center') {
+function wrapText(ctx, txt, cx, y, maxW, lineH, color, align = 'center', size = 17) {
   const words = txt.split(' ');
   const lines = [];
   let cur = '';
-  ctx.font = `${17 * FS}px ${UI_FONT}`;
+  ctx.font = `${size * FS}px ${UI_FONT}`;
   for (const w2 of words) {
     const test = cur ? cur + ' ' + w2 : w2;
     if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w2; }
     else cur = test;
   }
   if (cur) lines.push(cur);
-  lines.forEach((l, i) => ttext(ctx, l, align === 'left' ? cx : cx, y + i * lineH, 17, color, align));
+  lines.forEach((l, i) => ttext(ctx, l, align === 'left' ? cx : cx, y + i * lineH, size, color, align));
 }
 // particles vẽ ở toạ độ UI (màn victory)
 function drawPartsUI(ctx) {

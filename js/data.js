@@ -119,10 +119,10 @@ const SKILLS = {
     desc: 'Đánh thường — chuỗi 3 nhát chém kiếm, đòn 3 là KIẾM KHÍ +70% sát thương',
   },
   xungKiem: {
-    id: 'xungKiem', name: 'Xung Kiếm', icon: '🗡️', key: 'E',
-    pot: 220, range: 460, mp: 10, cd: 9, thrust: true,
+    id: 'xungKiem', name: 'Phi Kiếm', icon: '🗡️', key: 'E',
+    pot: 200, range: 520, mp: 10, cd: 8, proj: true, pierce: true,
     color: '#9fe8ff',
-    desc: 'Hạ thấp người CHỌC KIẾM về phía trước một đoạn xa — lao xuyên, xuyên phá mọi địch trên đường đâm',
+    desc: 'Phóng một thanh PHI KIẾM thẳng vào địch — xuyên phá mọi địch trên đường bay',
   },
   tamDoan: {
     id: 'tamDoan', name: 'Tam Đoạn Lướt', icon: '🌀', key: 'R',
@@ -132,9 +132,9 @@ const SKILLS = {
   },
   thienKiem: {
     id: 'thienKiem', name: 'Thiên Kiếm Giáng', icon: '☄️', key: 'F',
-    pot: 420, range: 500, mp: 70, cd: 45, cast: 1.8, aoeTarget: 120, giantsword: true,
+    pot: 170, range: 500, mp: 30, cd: 6, cast: 1.8, aoeTarget: 120, giantsword: true,
     color: '#ffd9a0',
-    desc: 'CHIÊU CUỐI — TRIỆU HỒI thanh kiếm khổng lồ từ trên trời ĐÁM XUỐNG mục tiêu, nổ AoE 120px',
+    desc: 'TRIỆU HỒI thanh kiếm khổng lồ từ trời ĐÁM XUỐNG mục tiêu, nổ AoE 120px — hồi nhanh 6s',
   },
 };
 
@@ -172,7 +172,7 @@ const JOBS = {
     hp: 620, mp: 280, atk: 36, def: 9, gHp: 53, gMp: 6, gAtk: 4.0, gDef: 1.0,
     hePhai: { name: 'Kiếm Vũ', icon: '🗡️', color: '#9fe8ff' },
     skills: ['tocTram', 'xungKiem', 'tamDoan', 'thienKiem'],
-    desc: 'Hệ Kiếm Vũ — chém nhanh lấp lánh, xung kiếm xuyên phá, lướt 3 đoạn liên hoàn, thiên kiếm giáng thế',
+    desc: 'Hệ Kiếm Vũ — chém nhanh, xung kiếm xuyên phá, lướt 3 đoạn, kiếm trời giáng',
   },
 };
 const JOB_ORDER = ['pld', 'whm', 'blm', 'mnk', 'sam'];

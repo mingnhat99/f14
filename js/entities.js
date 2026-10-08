@@ -432,22 +432,14 @@ function applySkill(p, def, t, tx, ty) {
       break;
     }
     case 'xungKiem': {
-      if (!t) break;
-      act('thrust', 0.34);
-      const a = ang(p.x, p.y, t.x, t.y);
-      const x0 = p.x, y0 = p.y;
-      const d = Math.max(70, dist(p.x, p.y, t.x, t.y) - t.r - 14);
-      const lx = p.x + Math.cos(a) * d, ly = p.y + Math.sin(a) * d;
-      FX.add({ type: 'stab', x: p.x, y: p.y - 4, x1: p.x + Math.cos(a) * (d + 46), y1: p.y + Math.sin(a) * (d + 46) - 4, color: '#9fe8ff', tmax: 0.32 });
-      p.dash = {
-        kind: 'through', t: 0, dur: 0.16, x0, y0, x1: lx, y1: ly, trail: '#cfe8ff',
-        onLand: () => {
-          for (const e of G.enemies) if (e.alive && distToSeg(e.x, e.y, x0, y0, lx, ly) < 44 + e.r) hitOne(e, def.pot);
-          addSlash(lx, ly, a, '#9fe8ff', { r: 1.2 });
-          G.cam.shake = Math.max(G.cam.shake, 3);
-          Snd.sfx('hit2');
-        },
-      };
+      const px = t ? t.x : tx, py = t ? t.y : ty;
+      act('thrust', 0.3); // vung người chọc kiếm phóng phi kiếm đi
+      const a = ang(p.x, p.y, px, py);
+      const reach = dist(p.x, p.y, px, py) + 340; // bay xuyên qua mục tiêu thêm một đoạn
+      addProj({
+        x: p.x, y: p.y - 6, target: t, tx: p.x + Math.cos(a) * reach, ty: p.y + Math.sin(a) * reach,
+        spd: 640, sword: true, size: 22, pot: def.pot, color: '#9fe8ff', trail: '#cfe8ff', pierce: true,
+      });
       Snd.sfx('swing');
       break;
     }
@@ -1461,6 +1453,41 @@ function addProj(pr) {
 function updateProjs(dt) {
   for (const pr of G.projs) {
     pr.t += dt;
+    // phi kiếm xuyên phá: bay thẳng, bám nhẹ theo mục tiêu, trúng mỗi địch trên đường bay đúng 1 lần
+    if (pr.pierce) {
+      let a = pr.ang !== undefined ? pr.ang : ang(pr.x, pr.y, pr.tx, pr.ty);
+      // bám nhẹ khi còn xa đích để dễ trúng; áp sát thì khóa hướng — bay thẳng xuyên qua
+      if (pr.target && pr.target.alive && dist(pr.x, pr.y, pr.target.x, pr.target.y) > 44) {
+        const want = ang(pr.x, pr.y, pr.target.x, pr.target.y);
+        const dA = ((want - a + Math.PI * 3) % TAU) - Math.PI;
+        a += dA * Math.min(1, dt * 5);
+      }
+      pr.ang = a;
+      pr.x += Math.cos(a) * pr.spd * dt;
+      pr.y += Math.sin(a) * pr.spd * dt;
+      pr.hitSet = pr.hitSet || new Set();
+      for (const e of G.enemies) {
+        if (!e.alive || pr.hitSet.has(e)) continue;
+        if (dist(pr.x, pr.y, e.x, e.y) < 26 + e.r) {
+          pr.hitSet.add(e);
+          const p = G.player;
+          const { dmg, crit } = playerPotency(p, pr.pot, { critBonus: pr.critBonus });
+          dealToEnemy(e, dmg, { crit });
+          p.lb = Math.min(100, p.lb + 2.4);
+          addSlash(e.x, e.y, a, pr.color);
+          addBurst(pr.x, pr.y, pr.color, 8, 150);
+          Snd.sfx('hit');
+        }
+      }
+      if (pr.trail && Math.random() < 0.8) addPart(pr.x, pr.y, rand(-14, 14), rand(-14, 14), pr.trail, rand(1.5, 3.2), 0.28);
+      // bay khỏi bản đồ → tan thành kiếm khí
+      if (pr.t > 3 || pr.x < 0 || pr.x > MAP.w || pr.y < 0 || pr.y > MAP.h) {
+        pr.done = true;
+        addBurst(pr.x, pr.y, pr.color, 8, 130);
+        G.rings.push({ x: pr.x, y: pr.y, r0: 6, r1: 42, t: 0, tmax: 0.22, color: pr.color, w: 3 });
+      }
+      continue;
+    }
     const homing = (pr.target && pr.target.alive !== false && pr.target.hp !== 0) ? pr.target : null;
     if (homing) { pr.tx = homing.x; pr.ty = homing.y; }
     const d = dist(pr.x, pr.y, pr.tx, pr.ty);
@@ -1526,6 +1553,19 @@ function drawProjs(ctx) {
       ctx.beginPath(); ctx.moveTo(pr.size * 1.05, 0); ctx.lineTo(pr.size * 0.35, -6); ctx.lineTo(pr.size * 0.35, 6); ctx.closePath(); ctx.fill();
       ctx.strokeStyle = '#c9b896'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(-pr.size, -5); ctx.lineTo(-pr.size * 0.55, 0); ctx.lineTo(-pr.size, 5); ctx.stroke();
+    } else if (pr.sword) {
+      // phi kiếm: lưỡi thép dài + chắn vàng, chĩa theo hướng bay
+      const s = pr.size;
+      ctx.strokeStyle = '#7a5a30'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(-s * 0.45, 0); ctx.stroke(); // chuôi
+      ctx.strokeStyle = '#ffd76a'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(-s * 0.45, -6); ctx.lineTo(-s * 0.45, 6); ctx.stroke(); // chắn
+      ctx.strokeStyle = '#8fa3bd'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(-s * 0.35, 0); ctx.lineTo(s * 1.1, 0); ctx.stroke(); // lưỡi
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-s * 0.3, 0); ctx.lineTo(s * 1.1, 0); ctx.stroke(); // gương sáng
+      ctx.fillStyle = '#eef4fb';
+      ctx.beginPath(); ctx.moveTo(s * 1.5, 0); ctx.lineTo(s * 0.85, -5.5); ctx.lineTo(s * 0.85, 5.5); ctx.closePath(); ctx.fill(); // mũi
     } else {
       drawEmoji(ctx, pr.icon, 0, 0, pr.size);
     }
